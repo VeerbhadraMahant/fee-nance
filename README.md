@@ -1,76 +1,86 @@
-# FinFlow: Advanced Personal & Shared Finance Management
+﻿# Fee-Nance
 
-This project presents a production-oriented personal finance and shared expense management system. Unlike basic trackers, it focuses on **financial accuracy**, **relational integrity**, and **advanced data visualization** to provide a clear, real-world picture of money flow.
+Fee-Nance is an advanced personal finance and group expense management web app focused on financial clarity, strong data integrity, and practical real-world workflows.
 
----
+## Project Direction
+- Runtime database: MongoDB with Mongoose
+- DBMS deliverables: SQL scripts folder for documentation mapping
+- Authentication: Email/password + Google OAuth
+- Currency: INR
+- Budget cycles: Monthly, quarterly, yearly
+- Recurring transactions: Monthly and yearly
+- Group splits: Equal, custom, percentage
+- Settlements: Manual with simplified pairwise balances
 
-## 🚀 Key Features
+## MVP Features Implemented
+### Personal finance
+- Category management (system + custom)
+- Transaction create/list with date filtering
+- Budget create/list with cycle support
+- Income/expense summary and balance calculation
 
-### 1. Holistic Personal Finance
-* **Gross vs. Net Income:** Tracks total earnings while accounting for real-world deductions such as taxes and insurance.
-* **Sankey Diagram Visualization:** Dynamically maps the flow of money from income sources through deductions and into specific expense categories for intuitive analysis.
+### Group expense management
+- Group creation with invite code
+- Join group via invite code
+- Multi-payer group expense recording
+- Split validation enforcing total equality
+- Balance computation per member
+- Simplified pairwise settlement suggestions
+- Manual settlement entries
 
-### 2. Group Expense Management
-* **Collaborative Groups:** Dedicated spaces for shared living, trips, or collaborative spending.
-* **Flexible Splits:** Record shared expenses and split costs accurately among members.
-* **Debt Settlement:** Integrated tracking to explicitly settle balances and clear debts between users.
+### Authentication and security
+- NextAuth credentials login
+- Google OAuth (enabled when credentials exist)
+- Protected dashboard and private API routes
 
-### 3. High-Integrity Data Modeling
-* **Soft Deletes:** Preserves historical financial data to maintain accurate historical logs, even if categories or accounts are removed.
-* **Constraint-Driven Design:** Leverages PostgreSQL's robust constraints to ensure data consistency and prevent corruption.
-* **Normalized Schema:** Structured to minimize redundancy while supporting complex analytical queries and scalable extensions.
+## Architecture
+- Frontend and backend: Next.js App Router
+- Auth: NextAuth
+- Data layer: Mongoose models
+- Validation: Zod
 
----
+## Tech Stack
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- MongoDB + Mongoose
 
-## 🏗️ Database Architecture
+## Setup
+1. Install dependencies
 
-The system is built on a **normalized relational schema** designed to handle complex financial relationships efficiently.
+npm install
 
-| Entity | Description |
-| :--- | :--- |
-| **Users** | Core identity and authentication. |
-| **Accounts** | Financial repositories (e.g., Checking, Savings, Credit). |
-| **Transactions** | Individual logs of income and expenses. |
-| **Deductions** | Tracks specific subtractions from gross income (Taxes, Benefits). |
-| **Groups** | Shared environments for collaborative spending. |
-| **Settlements** | Recorded payments to balance and clear group debts. |
+2. Create local environment file
+- Copy .env.example to .env.local
+- Fill required values
 
----
+3. Run development server
 
-## 🛠️ Tech Stack
+npm run dev
 
-* **Database:** PostgreSQL (Ensures transactional integrity and precise financial computations).
-* **Schema Design:** Normalized relational model.
-* **Visualization:** Sankey diagrams for intuitive money flow analysis.
+## Environment Variables
+- MONGODB_URI
+- NEXTAUTH_URL
+- NEXTAUTH_SECRET
+- GOOGLE_CLIENT_ID
+- GOOGLE_CLIENT_SECRET
 
----
+## Demo Seed Data
+Run:
 
-## 🏁 Getting Started
+npm run seed
 
-### Prerequisites
-* PostgreSQL
-* [Your Backend Language/Framework, e.g., Python/Node]
+Demo accounts:
+- alex@feenance.demo / Demo@1234
+- riya@feenance.demo / Demo@1234
 
-### Installation
+## Main Routes
+- / landing page
+- /login sign in
+- /register sign up
+- /dashboard protected dashboard
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/yourusername/finflow.git](https://github.com/yourusername/finflow.git)
-   ```
-
-2. **Setup the Database:**
-   Apply the normalized schema to your PostgreSQL instance to build the entities and constraints.
-   ```bash
-   psql -U your_user -d finflow -f database/schema.sql
-   ```
-
-3. **Configure Environment:**
-   Update your environment variables with your database credentials.
-
----
-
-## 🛡️ Design Philosophy
-
-Financial systems demand rigorous correctness. This project demonstrates a practical approach to database design by focusing on:
-* **Simplicity & Correctness:** Prioritizing accurate decimal math and transactional integrity over fragile workarounds.
-* **Real-World Applicability:** Modeling actual financial scenarios (like taxes and group splits) rather than just simple ins-and-outs.
+## Notes
+- Private APIs are under /api/private and are not publicly documented.
+- sql-scripts is intentionally empty right now and reserved for DBMS documentation scripts.
