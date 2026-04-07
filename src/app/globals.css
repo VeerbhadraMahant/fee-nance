@@ -1,7 +1,7 @@
  @import "tailwindcss";
 
 :root {
-  --app-bg-image: url("/landing-bg.png");
+  --app-bg-image: url("/gemini_generated_bg.png");
 
   --layer-0: #08070f;
   --layer-1: #0d0b1a;
@@ -68,6 +68,17 @@ body::before {
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(8, 7, 15, 0) 18%, rgba(8, 7, 15, 0.34) 62%, rgba(8, 7, 15, 0.74) 100%),
+    linear-gradient(180deg, rgba(4, 3, 10, 0.32), rgba(4, 3, 10, 0.46));
 }
 
 select,
@@ -161,15 +172,15 @@ select optgroup {
 }
 
 .landing-root {
-  background: linear-gradient(180deg, #05040d 0%, #05040f 48%, #04030c 100%);
+  background: linear-gradient(180deg, rgba(5, 4, 13, 0.16) 0%, rgba(5, 4, 15, 0.28) 48%, rgba(4, 3, 12, 0.44) 100%);
 }
 
 .landing-liquid {
   position: relative;
   background:
-    radial-gradient(circle at 26% 24%, rgba(109, 92, 236, 0.18), transparent 34%),
-    radial-gradient(circle at 74% 34%, rgba(130, 83, 187, 0.2), transparent 33%),
-    radial-gradient(circle at 42% 82%, rgba(42, 51, 146, 0.2), transparent 38%);
+    radial-gradient(circle at 26% 24%, rgba(109, 92, 236, 0.1), transparent 34%),
+    radial-gradient(circle at 74% 34%, rgba(130, 83, 187, 0.1), transparent 33%),
+    radial-gradient(circle at 42% 82%, rgba(42, 51, 146, 0.1), transparent 38%);
 }
 
 .landing-liquid::before,
@@ -193,7 +204,7 @@ select optgroup {
       rgba(92, 66, 124, 0.34) 236deg,
       rgba(20, 18, 53, 0.92) 360deg
     );
-  opacity: 0.58;
+  opacity: 0.28;
   mix-blend-mode: screen;
   animation: liquid-drift-a 24s ease-in-out infinite alternate;
 }
@@ -209,7 +220,7 @@ select optgroup {
       rgba(121, 82, 134, 0.24) 292deg,
       rgba(9, 7, 20, 0.92) 360deg
     );
-  opacity: 0.48;
+  opacity: 0.2;
   mix-blend-mode: lighten;
   animation: liquid-drift-b 21s ease-in-out infinite alternate;
 }

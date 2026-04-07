@@ -33,7 +33,7 @@ export default function Home() {
         </header>
 
         <section className="relative pb-4 pt-16 text-center md:pt-20">
-          <p className="section-overline reveal-on-scroll" style={{ "--reveal-delay": "100ms" } as CSSProperties}>Adaptive Ledger</p>
+          <p className="section-overline reveal-on-scroll" style={{ "--reveal-delay": "100ms" } as CSSProperties}>Your personal Finance Assistant at bay</p>
           <h1 className="reveal-on-scroll mt-4 font-display text-[72px] leading-[0.94] text-[rgba(250,249,255,0.98)] md:text-[148px]" style={{ "--reveal-delay": "200ms" } as CSSProperties}>
             Fee-Nance
           </h1>
