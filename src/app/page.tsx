@@ -28,7 +28,7 @@ export default function Home() {
             </Link>
           </nav>
           <Link href="/register" className="landing-primary-btn hidden px-6 py-2.5 text-[13px] font-semibold md:inline-flex">
-            Register Now
+            Sign-in
           </Link>
         </header>
 
@@ -42,7 +42,7 @@ export default function Home() {
           </p>
           <div className="reveal-on-scroll mt-11 flex flex-wrap items-center justify-center gap-3" style={{ "--reveal-delay": "400ms" } as CSSProperties}>
             <Link href="/register" className="landing-primary-btn px-11 py-3.5 text-[20px] md:text-[24px]">
-              Register Now
+              Let's Get Started
             </Link>
             <Link href="/login" className="landing-ghost-btn px-11 py-3.5 text-[20px] md:text-[24px]">
               Explore Ecosystem
