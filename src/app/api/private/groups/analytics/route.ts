@@ -26,7 +26,6 @@ import { Group } from "@/models/Group";
 import { GroupExpense } from "@/models/GroupExpense";
 import { Settlement } from "@/models/Settlement";
 import { NextResponse } from "next/server";
-import { Types } from "mongoose";
 
 export async function GET() {
   try {
