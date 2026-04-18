@@ -552,7 +552,7 @@ export function FinanceManager() {
             <select
               value={transactionForm.type}
               onChange={(event) =>
-                setTransactionForm((current) => ({ ...current, type: event.target.value }))
+                setTransactionForm((current) => ({ ...current, type: event.target.value as "income" | "expense" }))
               }
               className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"
             >
@@ -618,7 +618,7 @@ export function FinanceManager() {
               onChange={(event) =>
                 setTransactionForm((current) => ({
                   ...current,
-                  recurringFrequency: event.target.value,
+                  recurringFrequency: event.target.value as "monthly" | "yearly",
                 }))
               }
               className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"
@@ -675,7 +675,7 @@ export function FinanceManager() {
             <select
               value={budgetForm.cycle}
               onChange={(event) =>
-                setBudgetForm((current) => ({ ...current, cycle: event.target.value }))
+                setBudgetForm((current) => ({ ...current, cycle: event.target.value as "monthly" | "yearly" | "quarterly" }))
               }
               className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"
             >
