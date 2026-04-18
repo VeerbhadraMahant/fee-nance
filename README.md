@@ -21,25 +21,44 @@ Fee-Nance is an advanced personal finance and group expense management web app f
 - MongoDB Atlas + Mongoose
 - Zod
 
-## MVP Features Implemented
+## Features
+
 ### Personal finance
 - Category management (system + custom)
 - Transaction create/list with date filtering
 - Budget create/list with cycle support
 - Income/expense summary and balance calculation
 
+### Analytics
+- Financial flow Sankey diagram (gross income → expenses/savings breakdown)
+- Monthly trajectory chart (line and grouped-bar modes)
+- Expenditure composition donut chart with category breakdown
+- Quarterly overview bar chart with savings annotations
+- Efficiency report: savings rate, expense ratio, deduction rate, overall rating
+- KPI cards: gross income, deductions, net income, expenses, net savings
+- Configurable date range with preset shortcuts (week / month / quarter / YTD / year / custom)
+
 ### Group expense management
 - Group creation with invite code
 - Join group via invite code
 - Multi-payer group expense recording
-- Split validation enforcing total equality
+- Equal, custom amount, and percentage splits with total-equality validation
 - Balance computation per member
 - Simplified pairwise settlement suggestions
 - Manual settlement entries
 
+### Group analytics
+- Cross-group net balance Sankey (groups you owe vs groups that owe you)
+- Per-group spend timeline with stacked member bars
+- Member spend share donut
+- Top expenses table
+- Split type breakdown (equal / custom / percentage)
+- Settlement flow Sankey with per-node proportional flow sizing
+- Member net position bar chart
+
 ### Authentication and security
 - NextAuth credentials login
-- Google OAuth (enabled when credentials exist)
+- Google OAuth (enabled when credentials configured)
 - Protected dashboard and private API routes
 
 ## Setup and Run
