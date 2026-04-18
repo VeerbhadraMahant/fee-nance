@@ -21,6 +21,7 @@ import { jsonError } from "@/lib/http";
 import { roundCurrency } from "@/lib/money";
 import { toObjectId } from "@/lib/object-id";
 import { logger } from "@/lib/logger";
+import { Types } from "mongoose";
 import { Group } from "@/models/Group";
 import { GroupExpense } from "@/models/GroupExpense";
 import { Settlement } from "@/models/Settlement";
@@ -71,13 +72,13 @@ export async function GET() {
 
       // How much the user paid
       const userPaid = expenses.reduce((sum, e) => {
-        const payer = e.paidBy.find((p) => p.userId.toString() === userId);
+        const payer = e.paidBy.find((p: { userId: Types.ObjectId; amount: number }) => p.userId.toString() === userId);
         return sum + (payer?.amount ?? 0);
       }, 0);
 
       // How much the user owes (their split share)
       const userShare = expenses.reduce((sum, e) => {
-        const split = e.splits.find((s) => s.userId.toString() === userId);
+        const split = e.splits.find((s: { userId: Types.ObjectId; shareAmount: number }) => s.userId.toString() === userId);
         return sum + (split?.shareAmount ?? 0);
       }, 0);
 
