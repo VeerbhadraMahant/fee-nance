@@ -755,7 +755,7 @@ function QuarterlyBars({
                 x={x} y={baseY - incH} width={barW} height={incH}
                 fill="var(--color-accent)" opacity={0.18}
               />
-              {/* Expense — solid overlay from bottom */}
+              {/* Expense — solid overlay from bottom */} 
               <rect
                 x={x} y={baseY - expH} width={barW} height={expH}
                 fill="var(--color-warning)" opacity={0.65}
