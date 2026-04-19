@@ -1,4 +1,4 @@
-﻿# Fee-Nance
+﻿#Fee-Nance
 
 Fee-Nance is an advanced personal finance and group expense management web app focused on financial clarity, strong data integrity, and practical real-world workflows.
 
