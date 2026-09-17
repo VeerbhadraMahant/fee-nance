@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Plus, ScanLine, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatCurrency, toDateInput } from "@/lib/format";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import type { GroupMember } from "./types";
 
-type SplitType = "equal" | "custom" | "percentage";
+type SplitType = "equal" | "custom" | "percentage" | "itemized";
 
 const SPLIT_LABELS: Record<SplitType, { label: string; hint: string }> = {
   equal: {
@@ -43,7 +43,34 @@ const SPLIT_LABELS: Record<SplitType, { label: string; hint: string }> = {
     label: "Percentages",
     hint: "Assign a percentage per person. Must total 100%.",
   },
+  itemized: {
+    label: "By item",
+    hint: "List what was on the bill and tick who shared each line.",
+  },
 };
+
+interface LineItemDraft {
+  /** Local only — a React key. The server assigns real ids on save. */
+  key: string;
+  label: string;
+  amount: string;
+  sharedBy: string[];
+  proportional: boolean;
+}
+
+let lineItemKeySeed = 0;
+
+function newLineItem(overrides: Partial<LineItemDraft> = {}): LineItemDraft {
+  lineItemKeySeed += 1;
+  return {
+    key: `item-${lineItemKeySeed}`,
+    label: "",
+    amount: "",
+    sharedBy: [],
+    proportional: false,
+    ...overrides,
+  };
+}
 
 /**
  * Live tally for the payer / split grids. The API rejects anything that
@@ -135,6 +162,174 @@ function MemberAmountGrid({
   );
 }
 
+/**
+ * Repeater for an itemized bill. Members are toggle chips rather than a
+ * select because the common action — "this dish was shared by four of the
+ * six of us" — should be a few taps, not a few trips through a dropdown.
+ */
+function LineItemGrid({
+  items,
+  members,
+  onChange,
+  onRemove,
+  onAdd,
+}: {
+  items: LineItemDraft[];
+  members: GroupMember[];
+  onChange: (key: string, patch: Partial<LineItemDraft>) => void;
+  onRemove: (key: string) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div
+          key={item.key}
+          className="rounded-3xl border-[1.5px] border-foreground/15 p-4"
+        >
+          <div className="flex items-start gap-2">
+            <Input
+              value={item.label}
+              onChange={(e) => onChange(item.key, { label: e.target.value })}
+              placeholder={`Item ${index + 1}`}
+              className="h-10 flex-1 text-sm"
+            />
+            <div className="relative w-28 shrink-0">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={item.amount}
+                onChange={(e) => onChange(item.key, { amount: e.target.value })}
+                placeholder="0"
+                className="h-10 pr-7 text-sm"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"
+              >
+                ₹
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-10 shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => onRemove(item.key)}
+              disabled={items.length <= 1}
+              aria-label="Remove item"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {members.map((member) => {
+              const id = member.userId._id;
+              const active = item.sharedBy.includes(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() =>
+                    onChange(item.key, {
+                      sharedBy: active
+                        ? item.sharedBy.filter((m) => m !== id)
+                        : [...item.sharedBy, id],
+                    })
+                  }
+                  className={cn(
+                    "rounded-full border-[1.5px] px-3 py-1 text-xs font-medium transition-colors",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-foreground/20 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                  )}
+                >
+                  {member.userId.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={item.proportional}
+              onChange={(e) => onChange(item.key, { proportional: e.target.checked })}
+              className="size-3.5 rounded border-[1.5px] border-foreground/40 accent-primary"
+            />
+            Tax or tip — spread across the priced items instead of split evenly
+          </label>
+        </div>
+      ))}
+
+      <Button type="button" variant="outline" size="sm" onClick={onAdd}>
+        <Plus className="size-4" />
+        Add a line
+      </Button>
+    </div>
+  );
+}
+
+/** Rough per-person estimate — the server does the exact paise-accurate math. */
+function ItemizedPreview({
+  items,
+  members,
+}: {
+  items: LineItemDraft[];
+  members: GroupMember[];
+}) {
+  const totals = React.useMemo(() => {
+    const priced = items.filter((item) => !item.proportional);
+    const proportional = items.filter((item) => item.proportional);
+    const map = new Map<string, number>();
+
+    for (const item of priced) {
+      const amount = Number(item.amount) || 0;
+      if (!amount || !item.sharedBy.length) continue;
+      const share = amount / item.sharedBy.length;
+      for (const userId of item.sharedBy) {
+        map.set(userId, (map.get(userId) ?? 0) + share);
+      }
+    }
+
+    const subtotal = new Map(map);
+
+    for (const item of proportional) {
+      const amount = Number(item.amount) || 0;
+      const weightTotal = item.sharedBy.reduce(
+        (sum, userId) => sum + (subtotal.get(userId) ?? 0),
+        0,
+      );
+      if (!amount || !weightTotal) continue;
+      for (const userId of item.sharedBy) {
+        const weight = subtotal.get(userId) ?? 0;
+        map.set(userId, (map.get(userId) ?? 0) + (amount * weight) / weightTotal);
+      }
+    }
+
+    return map;
+  }, [items]);
+
+  const involved = members.filter((member) => (totals.get(member.userId._id) ?? 0) > 0);
+  if (!involved.length) return null;
+
+  return (
+    <dl className="mt-3 space-y-1 rounded-3xl bg-muted px-4 py-3 text-xs">
+      {involved.map((member) => (
+        <div key={member.userId._id} className="flex items-center justify-between">
+          <dt className="text-muted-foreground">{member.userId.name}</dt>
+          <dd className="tabular font-medium">
+            {formatCurrency(totals.get(member.userId._id) ?? 0)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function ExpenseDialog({
   open,
   onOpenChange,
@@ -157,8 +352,12 @@ export function ExpenseDialog({
   const [singlePayer, setSinglePayer] = React.useState("");
   const [payerMap, setPayerMap] = React.useState<Record<string, string>>({});
   const [splitMap, setSplitMap] = React.useState<Record<string, string>>({});
+  const [lineItems, setLineItems] = React.useState<LineItemDraft[]>([]);
+  const [scanning, setScanning] = React.useState(false);
+  const [scanAvailable, setScanAvailable] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [saving, setSaving] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -171,9 +370,31 @@ export function ExpenseDialog({
     setSinglePayer(members[0]?.userId._id ?? "");
     setPayerMap({});
     setSplitMap({});
+    setLineItems([newLineItem()]);
+    setScanning(false);
     setErrors({});
     setSaving(false);
   }, [open, members]);
+
+  // Only offer the scan button when an extractor is actually configured —
+  // a button that always fails is worse than no button.
+  React.useEffect(() => {
+    if (!open) return;
+    let active = true;
+
+    fetch("/api/private/receipts/extract")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { configured?: boolean } | null) => {
+        if (active) setScanAvailable(Boolean(body?.configured));
+      })
+      .catch(() => {
+        if (active) setScanAvailable(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   const total = Number(amount) || 0;
 
@@ -187,6 +408,90 @@ export function ExpenseDialog({
     () => Object.values(splitMap).reduce((sum, v) => sum + (Number(v) || 0), 0),
     [splitMap],
   );
+
+  const itemsTotal = React.useMemo(
+    () => lineItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
+    [lineItems],
+  );
+
+  const updateLineItem = React.useCallback(
+    (key: string, patch: Partial<LineItemDraft>) => {
+      setLineItems((current) =>
+        current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+      );
+    },
+    [],
+  );
+
+  const removeLineItem = React.useCallback((key: string) => {
+    setLineItems((current) => current.filter((item) => item.key !== key));
+  }, []);
+
+  const addLineItem = React.useCallback(() => {
+    setLineItems((current) => [...current, newLineItem()]);
+  }, []);
+
+  // Keep the total in step with the bill's items rather than making the
+  // user add them up by hand.
+  React.useEffect(() => {
+    if (splitType !== "itemized") return;
+    if (itemsTotal <= 0) return;
+    setAmount(itemsTotal.toFixed(2));
+  }, [itemsTotal, splitType]);
+
+  const handleScan = async (file: File) => {
+    setScanning(true);
+    setErrors((current) => ({ ...current, scan: "" }));
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result);
+          resolve(result.slice(result.indexOf(",") + 1));
+        };
+        reader.onerror = () => reject(new Error("Couldn't read that file"));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch("/api/private/receipts/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64, mimeType: file.type }),
+      });
+
+      if (!response.ok) {
+        toast.error(await readApiError(response, "Couldn't read that receipt"));
+        return;
+      }
+
+      const body = (await response.json()) as {
+        receipt: { merchant?: string; lineItems: Array<{ label: string; amount: number }> };
+      };
+
+      // Pre-fill labels and amounts only. Who shared what is never inferred —
+      // that stays a decision the group makes.
+      setLineItems(
+        body.receipt.lineItems.length
+          ? body.receipt.lineItems.map((item) =>
+              newLineItem({ label: item.label, amount: String(item.amount) }),
+            )
+          : [newLineItem()],
+      );
+
+      if (body.receipt.merchant && !title.trim()) {
+        setTitle(body.receipt.merchant);
+      }
+
+      toast.success(
+        `Found ${body.receipt.lineItems.length} item${body.receipt.lineItems.length === 1 ? "" : "s"} — check them and tick who shared each.`,
+      );
+    } catch {
+      toast.error("Couldn't read that receipt");
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -213,7 +518,30 @@ export function ExpenseDialog({
     }
 
     let splits;
-    if (splitType !== "equal") {
+    let itemPayload;
+
+    if (splitType === "itemized") {
+      const filled = lineItems.filter(
+        (item) => item.label.trim() && (Number(item.amount) || 0) > 0,
+      );
+
+      if (!filled.length) {
+        next.splits = "Add at least one item with a name and an amount.";
+      } else if (filled.some((item) => !item.sharedBy.length)) {
+        next.splits = "Every item needs at least one person assigned to it.";
+      } else if (filled.every((item) => item.proportional)) {
+        next.splits = "A tax or tip line needs a priced item to spread across.";
+      } else if (Math.abs(itemsTotal - total) >= 0.01) {
+        next.splits = `Items add up to ${formatCurrency(itemsTotal)}, but the total says ${formatCurrency(total)}.`;
+      }
+
+      itemPayload = filled.map((item) => ({
+        label: item.label.trim(),
+        amount: Number(item.amount),
+        sharedBy: item.sharedBy,
+        proportional: item.proportional,
+      }));
+    } else if (splitType !== "equal") {
       const target = splitType === "custom" ? total : 100;
       if (Math.abs(splitAssigned - target) >= 0.01) {
         next.splits =
@@ -248,6 +576,7 @@ export function ExpenseDialog({
         splitType,
         paidBy,
         splits,
+        lineItems: itemPayload,
         incurredAt: `${incurredAt}T00:00:00.000Z`,
       }),
     });
@@ -311,7 +640,7 @@ export function ExpenseDialog({
             </div>
 
             {/* ── Who paid ──────────────────────────────────────────── */}
-            <fieldset className="rounded-lg border border-border p-4">
+            <fieldset className="rounded-3xl border-[1.5px] border-foreground/15 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <legend className="text-sm font-medium">Who paid?</legend>
                 <Button
@@ -368,13 +697,13 @@ export function ExpenseDialog({
             </fieldset>
 
             {/* ── How to split ──────────────────────────────────────── */}
-            <fieldset className="rounded-lg border border-border p-4">
+            <fieldset className="rounded-3xl border-[1.5px] border-foreground/15 p-4">
               <legend className="text-sm font-medium">How should it split?</legend>
 
               <div
                 role="radiogroup"
                 aria-label="Split method"
-                className="mt-3 grid gap-1 rounded-lg bg-muted p-1 sm:grid-cols-3"
+                className="mt-3 grid gap-1 rounded-full bg-muted p-1 sm:grid-cols-2 lg:grid-cols-4"
               >
                 {(Object.keys(SPLIT_LABELS) as SplitType[]).map((type) => {
                   const active = splitType === type;
@@ -386,10 +715,10 @@ export function ExpenseDialog({
                       aria-checked={active}
                       onClick={() => setSplitType(type)}
                       className={cn(
-                        "h-10 rounded-md px-3 text-sm font-medium transition-colors",
+                        "h-10 rounded-full px-3 text-sm font-medium transition-colors",
                         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                         active
-                          ? "bg-card text-foreground shadow-xs"
+                          ? "bg-card text-foreground"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                     >
@@ -406,11 +735,54 @@ export function ExpenseDialog({
               {/* Progressive disclosure — the per-member grid only appears
                   when the chosen method actually needs it. */}
               {splitType === "equal" ? (
-                <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">
+                <p className="mt-3 rounded-3xl bg-muted px-3 py-2 text-sm">
                   {members.length
                     ? `${formatCurrency(perHead)} each across ${members.length} member${members.length === 1 ? "" : "s"}.`
                     : "No members to split between yet."}
                 </p>
+              ) : splitType === "itemized" ? (
+                <div className="mt-3 space-y-3">
+                  {scanAvailable && (
+                    <div className="flex items-center gap-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) void handleScan(file);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        loading={scanning}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <ScanLine className="size-4" />
+                        Scan a bill
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Fills in the items — you still decide who shared each one.
+                      </p>
+                    </div>
+                  )}
+
+                  <LineItemGrid
+                    items={lineItems}
+                    members={members}
+                    onChange={updateLineItem}
+                    onRemove={removeLineItem}
+                    onAdd={addLineItem}
+                  />
+
+                  <AllocationSummary assigned={itemsTotal} target={total} unit="currency" />
+
+                  <ItemizedPreview items={lineItems} members={members} />
+                </div>
               ) : (
                 <div className="mt-3">
                   <MemberAmountGrid

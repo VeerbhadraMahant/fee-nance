@@ -3,6 +3,7 @@ import { z } from "zod";
 import { connectToDatabase } from "@/lib/db";
 import { jsonError } from "@/lib/http";
 import { logger } from "@/lib/logger";
+import { isMongoDuplicateKeyError } from "@/lib/mongo-errors";
 import { User } from "@/models/User";
 
 const registerSchema = z.object({
@@ -44,6 +45,13 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return jsonError(error.issues[0]?.message ?? "Invalid input", 422);
+    }
+
+    // Two concurrent registrations for the same email can both pass the
+    // check-then-create lookup above; the unique index is what actually
+    // stops the duplicate, so it needs to map back to the same 409.
+    if (isMongoDuplicateKeyError(error)) {
+      return jsonError("An account with this email already exists", 409);
     }
 
     logger.error("Unhandled API route error", error);

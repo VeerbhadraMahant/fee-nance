@@ -56,7 +56,7 @@ function ConfirmDialog({
         <AlertDialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
-            "rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-2xl outline-none sm:p-6",
+            "rounded-3xl border-[1.5px] border-foreground bg-popover p-6 text-popover-foreground outline-none sm:p-8",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           )}
@@ -71,7 +71,7 @@ function ConfirmDialog({
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <AlertDialogPrimitive.Title className="text-base font-semibold leading-tight">
+              <AlertDialogPrimitive.Title className="font-display text-lg leading-none">
                 {title}
               </AlertDialogPrimitive.Title>
               {description && (

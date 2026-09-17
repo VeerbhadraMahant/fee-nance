@@ -12,7 +12,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "flex h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs outline-none transition-[border-color,box-shadow] duration-150",
+        "flex h-12 w-full min-w-0 rounded-full border-[1.5px] border-input bg-transparent px-6 py-2 text-base outline-none transition-colors duration-150",
         "placeholder:text-muted-foreground/70",
         "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25",
         "aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive/25",
@@ -32,7 +32,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
     <textarea
       data-slot="textarea"
       className={cn(
-        "flex min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs outline-none transition-[border-color,box-shadow] duration-150",
+        "flex min-h-20 w-full rounded-3xl border-[1.5px] border-input bg-transparent px-6 py-4 text-base outline-none transition-colors duration-150",
         "placeholder:text-muted-foreground/70",
         "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25",
         "aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive/25",

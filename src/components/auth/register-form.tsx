@@ -168,7 +168,7 @@ export function RegisterForm() {
         {errors.form && (
           <p
             role="alert"
-            className="flex items-start gap-2 rounded-md bg-destructive-subtle px-3 py-2 text-sm text-destructive"
+            className="flex items-start gap-2 rounded-2xl bg-destructive-subtle px-4 py-2.5 text-sm text-destructive"
           >
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {errors.form}

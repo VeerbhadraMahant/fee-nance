@@ -51,19 +51,19 @@ export default function Home() {
   return (
     <main className="min-h-dvh">
       {/* ── Nav ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b-[1.5px] border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             href="/"
-            className="flex items-center gap-2.5 rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="flex items-center gap-2.5 rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <span
               aria-hidden="true"
-              className="flex size-9 items-center justify-center rounded-lg bg-primary font-display text-lg text-primary-foreground"
+              className="flex size-9 items-center justify-center rounded-full bg-primary font-display text-lg text-primary-foreground"
             >
               F
             </span>
-            <span className="font-display text-lg">Fee-Nance</span>
+            <span className="font-display text-lg normal-case tracking-normal">Fee-Nance</span>
           </Link>
 
           <div className="flex items-center gap-2">
@@ -79,10 +79,10 @@ export default function Home() {
       </header>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-border">
+      <section className="relative overflow-hidden border-b-[1.5px] border-border">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-70 [background:radial-gradient(55%_45%_at_50%_0%,var(--accent),transparent_70%)]"
+          className="pointer-events-none absolute inset-0 opacity-80 [background:radial-gradient(60%_50%_at_50%_-10%,var(--accent),transparent_65%),radial-gradient(35%_35%_at_85%_10%,var(--primary),transparent_70%)]"
         />
 
         <div className="relative mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28 lg:px-8">
@@ -91,7 +91,7 @@ export default function Home() {
           </Reveal>
 
           <Reveal delay={80}>
-            <h1 className="mx-auto mt-4 max-w-3xl font-display text-4xl sm:text-5xl lg:text-6xl">
+            <h1 className="mx-auto mt-4 max-w-4xl font-display text-4xl sm:text-6xl lg:text-[6.5rem] lg:leading-[0.92]">
               Know where your money went, and who still owes you.
             </h1>
           </Reveal>
@@ -143,7 +143,7 @@ export default function Home() {
                 <Card className="h-full p-6">
                   <span
                     aria-hidden="true"
-                    className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground"
+                    className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"
                   >
                     <Icon className="size-5" />
                   </span>
@@ -157,17 +157,22 @@ export default function Home() {
       </section>
 
       {/* ── Closing CTA ─────────────────────────────────────────────── */}
-      <section className="border-t border-border bg-muted">
-        <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8">
+      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-6xl rounded-3xl bg-primary px-6 py-16 text-center text-primary-foreground sm:py-20">
           <Reveal>
-            <h2 className="font-display text-3xl sm:text-4xl">
+            <h2 className="font-display text-3xl sm:text-5xl">
               Start with this month.
             </h2>
-            <p className="measure mx-auto mt-3 text-muted-foreground">
+            <p className="measure mx-auto mt-3 text-primary-foreground/80">
               Add a handful of transactions and the dashboard, budgets and
               breakdowns fill themselves in.
             </p>
-            <Button size="lg" asChild className="mt-7">
+            <Button
+              size="lg"
+              variant="secondary"
+              asChild
+              className="mt-7 border-[1.5px] border-foreground"
+            >
               <Link href="/register">
                 Get started
                 <ArrowRight className="size-4" />
@@ -178,7 +183,7 @@ export default function Home() {
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="border-t border-border">
+      <footer className="border-t-[1.5px] border-border">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>Fee-Nance — personal and group expense tracking.</p>
           <p>Built as a DBMS mini-project.</p>

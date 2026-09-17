@@ -27,7 +27,7 @@ function BrandMark({ className }: { className?: string }) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary font-display text-lg text-primary-foreground shadow-sm",
+        "flex size-9 shrink-0 items-center justify-center rounded-full bg-primary font-display text-lg text-primary-foreground",
         className,
       )}
     >
@@ -43,7 +43,7 @@ function Brand() {
       className="flex items-center gap-2.5 rounded-md px-1 py-1 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <BrandMark />
-      <span className="font-display text-lg leading-none">Fee-Nance</span>
+      <span className="font-display text-lg normal-case tracking-normal leading-none">Fee-Nance</span>
     </Link>
   );
 }
@@ -123,7 +123,7 @@ function DesktopSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r-[1.5px] border-sidebar-border bg-sidebar lg:flex">
       <div className="flex h-16 items-center justify-between px-4">
         <Brand />
         <ThemeToggle />
@@ -138,21 +138,13 @@ function DesktopSidebar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-150",
+                "relative flex h-11 items-center gap-3 rounded-full px-4 text-sm font-medium transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
               )}
             >
-              {/* Active marker is a shape, not just a colour shift. */}
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-opacity",
-                  active ? "opacity-100" : "opacity-0",
-                )}
-              />
               <Icon className="size-[18px] shrink-0" aria-hidden="true" />
               {label}
             </Link>
@@ -160,7 +152,7 @@ function DesktopSidebar() {
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-2">
+      <div className="border-t-[1.5px] border-sidebar-border p-2">
         <AccountMenu />
       </div>
     </aside>
@@ -171,7 +163,7 @@ function DesktopSidebar() {
 
 function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur-md pt-[env(safe-area-inset-top)] lg:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b-[1.5px] border-border bg-background/90 px-4 backdrop-blur-md pt-[env(safe-area-inset-top)] lg:hidden">
       <Brand />
       <div className="flex items-center gap-1">
         <ThemeToggle />
@@ -191,7 +183,7 @@ function MobileBottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-[1.5px] border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {NAV_ITEMS.map(({ href, label, shortLabel, icon: Icon }) => {
         const active = isActivePath(pathname, href);
@@ -228,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <a
         href="#main-content"
-        className="sr-only rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+        className="sr-only rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
       >
         Skip to main content
       </a>

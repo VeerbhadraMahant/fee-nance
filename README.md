@@ -13,10 +13,12 @@ This is coursework, actively being refactored. What exists today works end to en
 ```
 src/app/(app)/*          React Server Components — the authenticated shell
 src/app/api/private/*    Route handlers: auth guard → Zod validation → Mongoose → JSON
-src/lib/*                Pure helpers: split allocation, money rounding, access checks
+src/lib/*                Pure helpers: split allocation, money rounding, forecasting,
+                         recurrence stepping, access checks
+src/lib/receipt/*        The OCR boundary — an interface and a registry, no vendor
 src/models/*             Mongoose schemas (7 collections)
 middleware.ts            Session gate over /dashboard, /finance, /groups, /analytics,
-                         /profile and /api/private
+                         /insights, /profile and /api/private
 ```
 
 Data flows one way: a client component calls a `/api/private` route, the handler resolves the session user, validates input with Zod, scopes the query to that user (or to a group they belong to), and returns plain JSON. Aggregation for the dashboards runs as MongoDB pipelines where possible; group balance folding currently happens in memory.
@@ -34,13 +36,18 @@ Known gaps, tracked as Phase 2 of the backlog: group and category routes return 
 
 ### Split allocation
 
-`lib/split.ts` implements three strategies behind `computeShares`:
+`lib/split.ts` implements four strategies behind `computeShares`:
 
 - **equal** — `total / n` rounded to 2 dp, with the residual pushed onto the last member so the parts sum to the total.
 - **custom** — caller supplies each share; the sum must equal the total after rounding.
 - **percentage** — `total × pct / 100` per member; percentages must sum to 100 and the resulting shares must sum to the total, otherwise the write is rejected.
+- **itemized** — each line of the bill is divided among the members who shared it. Lines flagged `proportional` (tax, tip, service charge) are spread by each member's priced subtotal rather than evenly.
 
-All three compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and reduced to a minimal set of pairwise transfers by a greedy debtor/creditor match.
+Itemized allocation works in **integer paise** and distributes the residual by the largest-remainder rule, rotating which member receives the spare paisa from one line to the next — so with a bill of many indivisible items nobody systematically absorbs the rounding. It is the one path in the codebase that already does what backlog item M1 wants everywhere, because it is where the arithmetic is densest.
+
+Note the inconsistency this creates: equal splits push the residual onto the last member, itemized splits use largest-remainder. Reconciling the two is backlog item M5.
+
+All four compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and reduced to a minimal set of pairwise transfers by a greedy debtor/creditor match.
 
 ## Tech Stack
 
@@ -70,10 +77,25 @@ All three compare sums with exact equality *after* rounding to 2 dp, not with an
 - KPI cards: gross income, deductions, net income, expenses, net savings
 - Date range presets — week, month, quarter, YTD, year, custom
 
+### Insights
+- 90-day cash-flow projection built from recurring rules plus a discretionary
+  spend rate, with a confidence band that widens with distance
+- Predicted date the balance runs out, when there is one
+- Outlier detection: expenses judged against the trailing run of their own
+  category, not against a global average
+- Duplicate charge detection: the same amount and description inside 48 hours
+- Category drift against each category's own three-month average
+
+All four are MongoDB `$setWindowFields` pipelines and are documented, with the
+index each one rides, in `docs/insights-pipelines.md`. **Requires MongoDB 5.0+.**
+
 ### Group expenses
 - Create a group (you become owner) or join one with an 8-character invite code
 - Multi-payer expenses: several people can have paid toward one bill
-- Equal, custom-amount and percentage splits, validated against the total
+- Equal, custom-amount, percentage and itemized splits, validated against the total
+- Itemized splitting: enter the lines of a bill and tick who shared each one;
+  tax and tip lines spread in proportion to what each person ordered. Optional
+  receipt scanning pre-fills the lines — who shared what is never inferred
 - Per-member balance computation
 - Simplified pairwise settlement suggestions
 - Manual settlement entries, optionally idempotent via an `idempotencyKey`
@@ -111,7 +133,10 @@ cp .env.example .env
 - `NEXTAUTH_SECRET`
 - `GOOGLE_CLIENT_ID` (optional)
 - `GOOGLE_CLIENT_SECRET` (optional)
+- `RECEIPT_EXTRACTOR` (optional) — selects an OCR implementation from `src/lib/receipt/registry.ts`; unset or `none` disables receipt scanning
 - `LOG_LEVEL` (optional)
+
+`MONGODB_URI` must point at **MongoDB 5.0 or newer** — `/insights` uses `$setWindowFields`. Every other page works on older servers.
 
 4. Seed demo data
 
@@ -135,9 +160,13 @@ npm run dev
 - `npm run lint` — lint
 - `npm run format` — lint with `--fix`
 - `npm run seed` — seed demo data
+- `npm run verify:calc` — check the split allocation and forecast arithmetic (no database needed)
 - `npm run dbms:report` — regenerate `docs/dbms-report-output.json`
 
-There is no test script yet; adding Vitest is Phase 4 of the backlog.
+There is no test runner yet; adding Vitest is Phase 4 of the backlog.
+`npm run verify:calc` is a stopgap covering the two pure money modules —
+itemized split allocation and the cash-flow forecast — and is what should
+migrate into Vitest first.
 
 ## Routes
 
@@ -149,7 +178,8 @@ There is no test script yet; adding Vitest is Phase 4 of the backlog.
 | `/finance` | Transactions, budgets, categories |
 | `/groups`, `/groups/[groupId]` | Group list and group workspace |
 | `/analytics` | Deeper breakdowns and trajectory |
-| `/profile` | Account details and preferences |
+| `/insights` | Cash-flow forecast, unusual spending, duplicate charges |
+| `/profile` | Account details and preferences (reached from the account menu) |
 
 Private APIs live under `/api/private/*`. They are enumerated in `docs/private-api-reference.md`.
 
@@ -174,6 +204,7 @@ Database:
 
 API and operations:
 - `docs/private-api-reference.md`
+- `docs/insights-pipelines.md` — the `$setWindowFields` pipelines behind `/insights`
 - `docs/secrets-policy.md`
 - `docs/demo-script.md`, `docs/manual-qa-checklist.md`
 
@@ -189,9 +220,10 @@ Phase 0 audit (read-only findings that drive the backlog):
 
 Confirmed by the Phase 0 audit, not speculation:
 
-- **Money is stored as floating-point rupees.** Correctness depends on `roundCurrency` being called after every operation, and `balances`/`analytics` still use epsilon thresholds where `split.ts` uses exact-after-round equality. Migrating to integer minor units behind a `Money` value object is Phase 1.
+- **Money is stored as floating-point rupees.** Correctness depends on `roundCurrency` being called after every operation, and `balances`/`analytics` still use epsilon thresholds where `split.ts` uses exact-after-round equality. Migrating to integer minor units behind a `Money` value object is Phase 1. Itemized splitting raises the stakes here: it performs dozens of divisions per bill where the other strategies perform one. It contains the risk locally by working in integer paise, which is an argument for doing the same everywhere rather than a substitute for it.
+- **The forecast double-counts recurring expenses approximately.** Generated occurrences carry no reference to the rule that produced them, so the projection subtracts each rule's rate from the discretionary rate instead of excluding the occurrences by id. Exact over a long window, approximate over a short one; fixed properly by backlog item F8. Detailed in `docs/insights-pipelines.md`.
 - **Percentage splits have no explicit remainder rule.** They reject inputs whose rounded shares miss the total instead of allocating the residual.
-- **No automated tests.** The money math is unverified by anything but manual QA.
+- **No test runner.** `npm run verify:calc` covers itemized split allocation and the forecast, but the rest of the money math is unverified by anything except manual QA.
 - **No service layer.** Route handlers mix validation, business logic and persistence.
 - **Missing endpoints.** Group expenses and settlements cannot be edited or deleted, and there is no member-removal or leave-group route.
 - **Categories hard-delete.** Transactions and budgets referencing a deleted category are left with a dangling `categoryId` and render as "Uncategorized".
@@ -319,14 +351,23 @@ Fee-Nance stores data as MongoDB documents with Mongoose schemas, modelled to ma
 | `notes` | String | — | Optional detail |
 | `amount` | Number | ✓ | Total expense amount |
 | `currency` | String | ✓ | `"INR"` |
-| `splitType` | String | ✓ | `"equal"` \| `"custom"` \| `"percentage"` |
+| `splitType` | String | ✓ | `"equal"` \| `"custom"` \| `"percentage"` \| `"itemized"` |
 | `paidBy[].userId` | ObjectId | ✓ | Who paid |
 | `paidBy[].amount` | Number | ✓ | How much they paid |
 | `splits[].userId` | ObjectId | ✓ | Each member's share |
 | `splits[].amount` | Number | — | Raw input for custom splits; provenance only |
 | `splits[].percentage` | Number | — | Raw input for percentage splits; provenance only |
 | `splits[].shareAmount` | Number | ✓ | Computed owed amount — the source of truth |
+| `lineItems[].label` | String | — | Itemized splits only; one line of the bill |
+| `lineItems[].amount` | Number | — | Price of that line |
+| `lineItems[].sharedBy` | ObjectId[] | — | Members who shared that line |
+| `lineItems[].proportional` | Boolean | — | Tax/tip: spread by subtotal, not evenly |
+| `extraction.source` | String | — | Which OCR extractor produced the line items |
+| `extraction.confidence` | Number | — | Extractor-reported confidence, if any |
+| `extraction.extractedAt` | Date | — | When extraction ran |
 | `incurredAt` | Date | ✓ | When the expense occurred |
+
+`lineItems` is provenance, exactly like `splits[].amount` and `splits[].percentage` — `splits[].shareAmount` remains the only field balances are computed from.
 
 ### settlements
 | Field | Type | Required | Notes |

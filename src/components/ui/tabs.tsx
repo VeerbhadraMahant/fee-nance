@@ -15,7 +15,7 @@ function TabsList({
     <TabsPrimitive.List
       className={cn(
         // Scrolls rather than wrapping or squashing on narrow screens.
-        "inline-flex h-11 w-full max-w-full items-center justify-start gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground sm:w-auto",
+        "inline-flex h-12 w-full max-w-full items-center justify-start gap-1 overflow-x-auto rounded-full border-[1.5px] border-foreground bg-transparent p-1 text-foreground sm:w-auto",
         className,
       )}
       {...props}
@@ -30,8 +30,8 @@ function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-[background-color,color] duration-150",
-        "data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs",
+        "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors duration-150",
+        "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
         "disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:size-4 [&_svg]:pointer-events-none",
         className,

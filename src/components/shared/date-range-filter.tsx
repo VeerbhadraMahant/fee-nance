@@ -92,7 +92,7 @@ export function DateRangeFilter({
       <div
         role="group"
         aria-label="Date range presets"
-        className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1"
+        className="flex flex-wrap items-center gap-1 rounded-full border-[1.5px] border-foreground bg-transparent p-1"
       >
         {PRESETS.map((preset) => {
           const active = activePreset?.id === preset.id;
@@ -103,10 +103,10 @@ export function DateRangeFilter({
               aria-pressed={active}
               onClick={() => onChange(preset.range())}
               className={cn(
-                "h-9 whitespace-nowrap rounded-md px-3 text-xs font-medium transition-colors",
+                "h-9 whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 active
-                  ? "bg-card text-foreground shadow-xs"
+                  ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { Anton, DM_Sans, JetBrains_Mono } from "next/font/google";
 
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -7,17 +7,18 @@ import { TooltipProvider } from "@/components/ui/misc";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
-// Display face — used for the wordmark and page titles only, never body copy.
-// Loaded as a variable font so the whole 100–900 range costs one file.
-const displayFont = Fraunces({
+// Display face — condensed ultrabold, used for headings and hero numerals only.
+const displayFont = Anton({
   variable: "--font-display",
   subsets: ["latin"],
+  weight: "400",
   display: "swap",
 });
 
-const bodyFont = Inter({
+const bodyFont = DM_Sans({
   variable: "--font-body",
   subsets: ["latin"],
+  weight: "500",
   display: "swap",
 });
 
@@ -42,8 +43,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   // No maximumScale / userScalable:false — pinch zoom stays available.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfaff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0a14" },
+    { media: "(prefers-color-scheme: light)", color: "#e2e2df" },
+    { media: "(prefers-color-scheme: dark)", color: "#070607" },
   ],
 };
 

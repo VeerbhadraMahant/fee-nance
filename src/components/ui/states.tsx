@@ -52,14 +52,14 @@ function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-3xl border-[1.5px] border-dashed border-border px-6 py-10 text-center",
         className,
       )}
     >
       {Icon && (
         <span
           aria-hidden="true"
-          className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          className="flex size-11 items-center justify-center rounded-full bg-secondary text-secondary-foreground"
         >
           <Icon className="size-5" />
         </span>
@@ -93,7 +93,7 @@ function ErrorState({
     <div
       role="alert"
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-subtle px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-3xl border-[1.5px] border-destructive/40 bg-destructive-subtle px-6 py-10 text-center",
         className,
       )}
     >

@@ -44,7 +44,7 @@ function Switch({
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb className="pointer-events-none block size-5 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0" />
+      <SwitchPrimitive.Thumb className="pointer-events-none block size-5 rounded-full bg-white ring-0 transition-transform duration-200 data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0" />
     </SwitchPrimitive.Root>
   );
 }
@@ -56,7 +56,7 @@ function Checkbox({
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "peer size-5 shrink-0 rounded-[5px] border border-input shadow-xs transition-colors",
+        "peer size-5 shrink-0 rounded-[6px] border-[1.5px] border-input transition-colors",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -125,7 +125,7 @@ function Tooltip({
           side={side}
           sideOffset={6}
           className={cn(
-            "z-50 max-w-xs rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md",
+            "z-50 max-w-xs rounded-full border-[1.5px] border-foreground bg-popover px-3 py-1.5 text-xs text-popover-foreground",
             "data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95",
           )}
         >

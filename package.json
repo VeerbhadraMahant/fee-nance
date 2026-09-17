@@ -9,6 +9,7 @@
     "lint": "eslint",
     "format": "eslint . --fix",
     "seed": "tsx --env-file-if-exists=.env.local --env-file=.env src/scripts/seed.ts",
+    "verify:calc": "tsx src/scripts/verify-calculations.ts",
     "dbms:report": "tsx --env-file-if-exists=.env.local --env-file=.env src/scripts/dbms-report.ts"
   },
   "dependencies": {

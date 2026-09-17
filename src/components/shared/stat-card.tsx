@@ -68,7 +68,7 @@ export function StatCard({
           <span
             aria-hidden="true"
             className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-lg",
+              "flex size-8 shrink-0 items-center justify-center rounded-full",
               styles.chip,
             )}
           >
@@ -79,7 +79,7 @@ export function StatCard({
 
       <p
         className={cn(
-          "tabular mt-2.5 text-2xl font-semibold leading-none tracking-tight",
+          "tabular mt-2.5 font-display text-3xl normal-case leading-none tracking-normal",
           styles.value,
         )}
       >

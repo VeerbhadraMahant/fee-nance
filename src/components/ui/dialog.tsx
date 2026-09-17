@@ -47,13 +47,13 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed z-50 flex flex-col gap-4 border border-border bg-popover text-popover-foreground shadow-2xl outline-none",
+          "fixed z-50 flex flex-col gap-4 border-[1.5px] border-foreground bg-popover text-popover-foreground outline-none",
           // mobile: bottom sheet
-          "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl",
+          "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[2.5rem]",
           "data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4 data-[state=open]:fade-in-0",
           "data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-4 data-[state=closed]:fade-out-0",
           // desktop: centred dialog
-          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[88dvh] sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl",
+          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[88dvh] sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[2.5rem]",
           "sm:data-[state=open]:zoom-in-95 sm:data-[state=open]:slide-in-from-bottom-0",
           "sm:data-[state=closed]:zoom-out-95 sm:data-[state=closed]:slide-out-to-bottom-0",
           className,
@@ -68,7 +68,7 @@ function DialogContent({
         {children}
         {showClose && (
           <DialogPrimitive.Close
-            className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             aria-label="Close dialog"
           >
             <X className="size-4" />
@@ -105,7 +105,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       className={cn(
         // Reverse on mobile so the primary action sits on top, under the thumb.
-        "flex flex-col-reverse gap-2 border-t border-border px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-4",
+        "flex flex-col-reverse gap-2 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-4",
         className,
       )}
       {...props}
@@ -119,7 +119,7 @@ function DialogTitle({
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-lg font-semibold leading-tight", className)}
+      className={cn("font-display text-xl leading-none", className)}
       {...props}
     />
   );

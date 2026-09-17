@@ -49,11 +49,11 @@ export function AuthLayout({
           >
             <span
               aria-hidden="true"
-              className="flex size-9 items-center justify-center rounded-lg bg-primary font-display text-lg text-primary-foreground"
+              className="flex size-9 items-center justify-center rounded-full bg-primary font-display text-lg text-primary-foreground"
             >
               F
             </span>
-            <span className="font-display text-lg">Fee-Nance</span>
+            <span className="font-display text-lg normal-case tracking-normal">Fee-Nance</span>
           </Link>
           <ThemeToggle />
         </div>
@@ -61,7 +61,7 @@ export function AuthLayout({
         <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full max-w-sm space-y-6">
             <div className="space-y-1.5">
-              <h1 className="font-display text-2xl sm:text-3xl">{title}</h1>
+              <h1 className="font-display text-2xl sm:text-3xl text-balance">{title}</h1>
               <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
 
@@ -73,10 +73,10 @@ export function AuthLayout({
       </div>
 
       {/* ── Context side ────────────────────────────────────────────── */}
-      <aside className="relative hidden overflow-hidden bg-muted lg:flex lg:flex-col lg:justify-center lg:px-12">
+      <aside className="relative hidden overflow-hidden bg-accent text-accent-foreground lg:flex lg:flex-col lg:justify-center lg:px-12">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(60%_50%_at_20%_15%,var(--accent),transparent_70%),radial-gradient(50%_45%_at_85%_80%,var(--secondary),transparent_70%)]"
+          className="pointer-events-none absolute inset-0 opacity-70 [background:radial-gradient(55%_50%_at_85%_10%,var(--primary),transparent_70%)]"
         />
 
         <div className="relative max-w-md space-y-8">
@@ -89,13 +89,13 @@ export function AuthLayout({
               <li key={heading} className="flex gap-4">
                 <span
                   aria-hidden="true"
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-card text-primary shadow-xs"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-card text-primary"
                 >
                   <Icon className="size-5" />
                 </span>
                 <span>
                   <span className="block font-medium">{heading}</span>
-                  <span className="mt-1 block text-sm text-muted-foreground">
+                  <span className="mt-1 block text-sm text-accent-foreground/75">
                     {body}
                   </span>
                 </span>
@@ -103,7 +103,7 @@ export function AuthLayout({
             ))}
           </ul>
 
-          <Card className="p-4">
+          <Card className="rounded-3xl bg-card/95 p-4 text-card-foreground">
             <p className="text-sm text-muted-foreground">
               Built as a DBMS mini-project: MongoDB aggregation pipelines behind
               every chart, with authenticated, per-user data isolation.

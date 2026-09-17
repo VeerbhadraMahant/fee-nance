@@ -22,6 +22,17 @@ All routes under `/api/private/*` require an authenticated session.
   - Aggregated totals, category breakdown, monthly trend, group count.
   - Query params: `startDate`, `endDate`.
 
+## Insights Module
+
+- `GET /api/private/insights`
+  - Outlier expenses, duplicate charges, category drift and a 90-day cash-flow
+    projection, in one payload.
+  - Query params: `startDate`, `endDate` (these bound the diagnostics only —
+    the forecast always runs forward from today).
+  - Read-only. Nothing is written and no flag is stored; every detector
+    recomputes per request.
+  - Requires MongoDB 5.0+ (`$setWindowFields`). See `docs/insights-pipelines.md`.
+
 ## Finance Module
 
 - `GET /api/private/finance/aggregate`
@@ -91,7 +102,23 @@ All routes under `/api/private/*` require an authenticated session.
   - Query params: `startDate`, `endDate`, `createdBy`, `page`, `limit`, `sortBy`, `sortOrder`.
 - `POST /api/private/groups/[groupId]/expenses`
   - Create shared group expense.
-  - Supports split types: `equal`, `custom`, `percentage` and multiple payers.
+  - Supports split types: `equal`, `custom`, `percentage`, `itemized`, and
+    multiple payers.
+  - `itemized` requires a `lineItems` array (`label`, `amount`, `sharedBy[]`,
+    optional `proportional` for tax/tip). It is rejected on any other split
+    type, and any other split type is rejected without it.
+
+### Receipt Extraction
+
+- `GET /api/private/receipts/extract`
+  - Reports whether an OCR extractor is configured (`{ configured: boolean }`),
+    so the UI can hide the scan button when it would only fail.
+- `POST /api/private/receipts/extract`
+  - Body: `{ base64, mimeType }`, image capped near 5 MB.
+  - Returns a **draft** set of line items for the user to confirm. The image is
+    never persisted and this route never writes to the ledger.
+  - `501` when no extractor is configured — the intended state until a model is
+    plugged into `src/lib/receipt/registry.ts`.
 
 ### Group Balances
 

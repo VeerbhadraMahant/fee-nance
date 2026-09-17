@@ -44,6 +44,36 @@ const splitSchema = new Schema(
   },
 );
 
+/**
+ * One line of an itemized bill. Keeps its own `_id` so the UI can address a
+ * row, and records who shared it — provenance for how the split was derived.
+ * `splits[].shareAmount` remains the source of truth for balances, exactly as
+ * it is for the raw `amount` / `percentage` inputs on the other strategies.
+ */
+const lineItemSchema = new Schema({
+  label: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  sharedBy: {
+    type: [{ type: Types.ObjectId, ref: "User" }],
+    required: true,
+    default: [],
+  },
+  // Tax, tip or service charge: spread by subtotal rather than evenly.
+  proportional: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+});
+
 const groupExpenseSchema = new Schema(
   {
     groupId: {
@@ -80,7 +110,7 @@ const groupExpenseSchema = new Schema(
     },
     splitType: {
       type: String,
-      enum: ["equal", "custom", "percentage"],
+      enum: ["equal", "custom", "percentage", "itemized"],
       required: true,
       index: true,
     },
@@ -93,6 +123,25 @@ const groupExpenseSchema = new Schema(
       type: [splitSchema],
       required: true,
       default: [],
+    },
+    // Populated only for itemized expenses; empty for every other strategy.
+    lineItems: {
+      type: [lineItemSchema],
+      required: false,
+      default: [],
+    },
+    // Provenance when the line items came from a receipt scan rather than
+    // being typed. Absent for manual entry.
+    extraction: {
+      type: new Schema(
+        {
+          source: { type: String, required: true },
+          confidence: { type: Number, required: false },
+          extractedAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+      required: false,
     },
     incurredAt: {
       type: Date,

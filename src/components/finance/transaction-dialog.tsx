@@ -100,8 +100,8 @@ function TypeToggle({
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               active
                 ? id === "income"
-                  ? "bg-income-subtle text-income shadow-xs"
-                  : "bg-expense-subtle text-expense shadow-xs"
+                  ? "bg-income-subtle text-income"
+                  : "bg-expense-subtle text-expense"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

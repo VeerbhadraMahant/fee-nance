@@ -33,6 +33,22 @@ function atDate(monthOffset: number, day: number) {
   return new Date(now.getFullYear(), now.getMonth() + monthOffset, day, 10, 0, 0, 0);
 }
 
+/** Day-precision offset from today. Unlike `atDate`, this can never land in
+ *  the future regardless of where in the month the seed is run — which the
+ *  insights fixtures depend on, since the detectors only look backwards. */
+function daysAgo(days: number, hour = 10) {
+  const now = new Date();
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - days,
+    hour,
+    0,
+    0,
+    0,
+  );
+}
+
 function monthBounds(monthOffset = 0) {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1, 0, 0, 0, 0);
@@ -703,6 +719,75 @@ async function seed() {
     { userId: rahul._id, type: "expense", title: "Bangkok Vacation", amount: 65000, currency: "INR", categoryId: travelCategory._id, transactionDate: atDate(-8, 14), recurring: { enabled: false } },
     { userId: rahul._id, type: "expense", title: "Mumbai Weekend Trip", amount: 8500, currency: "INR", categoryId: travelCategory._id, transactionDate: atDate(-5, 22), recurring: { enabled: false } },
     { userId: rahul._id, type: "expense", title: "Kerala Backwaters Trip", amount: 22000, currency: "INR", categoryId: travelCategory._id, transactionDate: atDate(-2, 10), recurring: { enabled: false } },
+  ]);
+
+  /* ── Fixtures for /insights ────────────────────────────────────────────
+     The detectors need something to detect, so alex gets a dense, boring run
+     of Food spending to establish a baseline, one genuine spike against it,
+     and a pair of identical charges hours apart. Without these the page is
+     technically correct and completely empty on a fresh seed. */
+  await Transaction.insertMany([
+    // A steady baseline: eleven ordinary meals, ~₹1,150 average. The outlier
+    // pipeline needs at least five prior transactions in a category before it
+    // will judge anything, and a real spread before a z-score means anything.
+    ...[
+      { days: 85, amount: 1150, title: "Weeknight Takeaway" },
+      { days: 78, amount: 980, title: "Office Canteen Top-up" },
+      { days: 71, amount: 1320, title: "Groceries" },
+      { days: 64, amount: 1080, title: "Weeknight Takeaway" },
+      { days: 57, amount: 1240, title: "Groceries" },
+      { days: 50, amount: 900, title: "Coffee & Breakfast" },
+      { days: 43, amount: 1410, title: "Groceries" },
+      { days: 36, amount: 1120, title: "Weeknight Takeaway" },
+      { days: 29, amount: 1260, title: "Groceries" },
+      { days: 22, amount: 1040, title: "Coffee & Breakfast" },
+      { days: 15, amount: 1190, title: "Weeknight Takeaway" },
+    ].map((entry) => ({
+      userId: alex._id,
+      type: "expense",
+      title: entry.title,
+      amount: entry.amount,
+      currency: "INR",
+      categoryId: foodCategory._id,
+      transactionDate: daysAgo(entry.days),
+      recurring: { enabled: false },
+    })),
+
+    // The spike — roughly 10× the running average, so it clears both the
+    // z-score threshold and the ₹500 floor comfortably.
+    {
+      userId: alex._id,
+      type: "expense",
+      title: "Anniversary Dinner",
+      amount: 11800,
+      currency: "INR",
+      categoryId: foodCategory._id,
+      transactionDate: daysAgo(6),
+      recurring: { enabled: false },
+    },
+
+    // A double-charge: same amount, same description, six hours apart. Put in
+    // Shopping so it doesn't disturb the Food baseline above.
+    {
+      userId: alex._id,
+      type: "expense",
+      title: "Streaming Annual Plan",
+      amount: 1299,
+      currency: "INR",
+      categoryId: shoppingCategory._id,
+      transactionDate: daysAgo(9, 9),
+      recurring: { enabled: false },
+    },
+    {
+      userId: alex._id,
+      type: "expense",
+      title: "Streaming Annual Plan",
+      amount: 1299,
+      currency: "INR",
+      categoryId: shoppingCategory._id,
+      transactionDate: daysAgo(9, 15),
+      recurring: { enabled: false },
+    },
   ]);
 
   const thisMonth = monthBounds(0);

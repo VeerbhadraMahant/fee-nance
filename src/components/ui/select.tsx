@@ -19,7 +19,7 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs outline-none transition-[border-color,box-shadow] duration-150",
+        "flex h-12 w-full items-center justify-between gap-2 rounded-full border-[1.5px] border-input bg-transparent px-6 py-2 text-base outline-none transition-colors duration-150",
         "data-[placeholder]:text-muted-foreground/70",
         "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25",
         "aria-invalid:border-destructive",
@@ -49,7 +49,7 @@ function SelectContent({
         data-slot="select-content"
         position={position}
         className={cn(
-          "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
+          "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-2xl border-[1.5px] border-foreground bg-popover text-popover-foreground",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
@@ -94,7 +94,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md py-2.5 pl-2.5 pr-8 text-sm outline-none",
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-full py-2.5 pl-2.5 pr-8 text-sm outline-none",
         "focus:bg-accent focus:text-accent-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,

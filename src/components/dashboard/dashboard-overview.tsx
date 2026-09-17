@@ -402,7 +402,7 @@ export function DashboardOverview() {
             >
               <span
                 aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
               >
                 <ChartPie className="size-5" />
               </span>
@@ -425,7 +425,7 @@ export function DashboardOverview() {
             >
               <span
                 aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-success-subtle text-success"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-subtle text-success"
               >
                 <PiggyBank className="size-5" />
               </span>

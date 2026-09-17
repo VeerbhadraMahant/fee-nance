@@ -3,19 +3,8 @@ import { connectToDatabase } from "@/lib/db";
 import { jsonError } from "@/lib/http";
 import { toObjectId } from "@/lib/object-id";
 import { logger } from "@/lib/logger";
+import { getNextDate } from "@/lib/recurrence";
 import { Transaction } from "@/models/Transaction";
-
-function getNextDate(date: Date, frequency: "monthly" | "yearly") {
-  const next = new Date(date);
-
-  if (frequency === "monthly") {
-    next.setMonth(next.getMonth() + 1);
-    return next;
-  }
-
-  next.setFullYear(next.getFullYear() + 1);
-  return next;
-}
 
 export async function POST() {
   try {
@@ -34,31 +23,43 @@ export async function POST() {
 
     const generated: Array<{ sourceId: string; newTransactionId: string }> = [];
 
+    // A rule can be overdue by more than one period (e.g. the user hasn't
+    // opened the app in months), so catch up every due occurrence here rather
+    // than just the next one — matches projectOccurrences' cap so a malformed
+    // rule can't spin forever.
+    const MAX_OCCURRENCES_PER_RULE = 240;
+
     for (const source of recurringTransactions) {
       const frequency = source.recurring.frequency as "monthly" | "yearly";
-      const runAt = source.recurring.nextRunAt ?? now;
+      let runAt = source.recurring.nextRunAt ?? now;
+      let occurrences = 0;
 
-      const clone = await Transaction.create({
-        userId: source.userId,
-        type: source.type,
-        title: source.title,
-        notes: source.notes,
-        amount: source.amount,
-        currency: source.currency,
-        categoryId: source.categoryId,
-        transactionDate: runAt,
-        recurring: {
-          enabled: false,
-        },
-      });
+      while (runAt.getTime() <= now.getTime() && occurrences < MAX_OCCURRENCES_PER_RULE) {
+        const clone = await Transaction.create({
+          userId: source.userId,
+          type: source.type,
+          title: source.title,
+          notes: source.notes,
+          amount: source.amount,
+          currency: source.currency,
+          categoryId: source.categoryId,
+          transactionDate: runAt,
+          recurring: {
+            enabled: false,
+          },
+        });
 
-      source.recurring.nextRunAt = getNextDate(runAt, frequency);
+        generated.push({
+          sourceId: source._id.toString(),
+          newTransactionId: clone._id.toString(),
+        });
+
+        runAt = getNextDate(runAt, frequency);
+        occurrences += 1;
+      }
+
+      source.recurring.nextRunAt = runAt;
       await source.save();
-
-      generated.push({
-        sourceId: source._id.toString(),
-        newTransactionId: clone._id.toString(),
-      });
     }
 
     return Response.json({

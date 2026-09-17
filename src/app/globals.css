@@ -10,114 +10,111 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Radius ────────────────────────────────────────────────────────────── */
-  --radius: 0.625rem;
+  /* ── Radius — Caldera triple-radius system ────────────────────────────── */
+  --radius: 1.25rem; /* 20px — medium surfaces */
+  --radius-card: 2.5rem; /* 40px */
+  --radius-pill: 800px;
+  --radius-input: 100px;
 
-  /* ── Surfaces ──────────────────────────────────────────────────────────── */
-  --background: #fbfaff;
-  --foreground: #14121f;
+  /* ── Surfaces — warm limestone canvas ──────────────────────────────────── */
+  --background: #e2e2df; /* Pumice */
+  --foreground: #070607; /* Obsidian */
 
-  --card: #ffffff;
-  --card-foreground: #14121f;
+  --card: #f7f6f2; /* Limestone */
+  --card-foreground: #070607;
 
-  --popover: #ffffff;
-  --popover-foreground: #14121f;
+  --popover: #f7f6f2;
+  --popover-foreground: #070607;
 
-  /* ── Brand ─────────────────────────────────────────────────────────────── */
-  /* white on #534ab7 = 6.93:1 */
-  --primary: #534ab7;
-  --primary-foreground: #ffffff;
-  --primary-hover: #453d9e;
+  /* ── Brand — Ember ─────────────────────────────────────────────────────── */
+  --primary: #fc5000;
+  --primary-foreground: #070607;
+  --primary-hover: #e04700;
 
-  --secondary: #f1eefb;
-  --secondary-foreground: #35306b;
+  --secondary: #f7f6f2;
+  --secondary-foreground: #070607;
 
-  --accent: #ede9fb;
-  --accent-foreground: #35306b;
+  --accent: #524ae9; /* Plasma Violet — hero/accent only, never controls */
+  --accent-foreground: #ffffff;
 
   /* ── Muted / meta text ─────────────────────────────────────────────────── */
-  --muted: #f3f1fa;
-  /* #605c75 on #ffffff = 6.41:1 */
-  --muted-foreground: #605c75;
+  --muted: #ececea;
+  --muted-foreground: #4a4846;
 
   /* ── Lines & focus ─────────────────────────────────────────────────────── */
-  --border: #e4e0f2;
-  --input: #ded9ee;
-  --ring: #534ab7;
+  --border: #070607;
+  --input: #070607;
+  --ring: #fc5000;
 
   /* ── Semantic status ───────────────────────────────────────────────────── */
-  /* All foreground variants verified >= 4.5:1 on --card */
   --destructive: #b42318;
   --destructive-foreground: #ffffff;
-  --destructive-subtle: #fef3f2;
+  --destructive-subtle: #fbe2df;
 
   --success: #067a5e;
   --success-foreground: #ffffff;
-  --success-subtle: #ecfdf5;
+  --success-subtle: #dcf3ea;
 
   --warning: #b54708;
   --warning-foreground: #ffffff;
-  --warning-subtle: #fffaeb;
+  --warning-subtle: #f5e8d8;
 
   --info: #175cd3;
   --info-foreground: #ffffff;
-  --info-subtle: #eff8ff;
+  --info-subtle: #dbe7f8;
 
   /* ── Money semantics ───────────────────────────────────────────────────── */
-  /* Always paired with an icon or label — never colour alone. */
   --income: #067a5e;
-  --income-subtle: #ecfdf5;
+  --income-subtle: #dcf3ea;
   --expense: #b54708;
-  --expense-subtle: #fffaeb;
+  --expense-subtle: #f5e8d8;
 
   /* ── Charts — categorical, hue-spread for colour-vision deficiency ─────── */
-  --chart-1: #5b4fcf;
-  --chart-2: #0e9384;
-  --chart-3: #b54708;
-  --chart-4: #9e2a6e;
-  --chart-5: #1570a5;
-  --chart-6: #5d6b83;
-  --chart-grid: #ebe8f5;
+  --chart-1: #fc5000;
+  --chart-2: #524ae9;
+  --chart-3: #067a5e;
+  --chart-4: #b54708;
+  --chart-5: #175cd3;
+  --chart-6: #8a8783;
+  --chart-grid: #d8d7d3;
 
   /* ── Sidebar ───────────────────────────────────────────────────────────── */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #14121f;
-  --sidebar-primary: #534ab7;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1eefb;
-  --sidebar-accent-foreground: #35306b;
-  --sidebar-border: #e9e5f5;
-  --sidebar-ring: #534ab7;
+  --sidebar: #f7f6f2;
+  --sidebar-foreground: #070607;
+  --sidebar-primary: #fc5000;
+  --sidebar-primary-foreground: #070607;
+  --sidebar-accent: #ececea;
+  --sidebar-accent-foreground: #070607;
+  --sidebar-border: #070607;
+  --sidebar-ring: #fc5000;
 }
 
 .dark {
-  --background: #0b0a14;
-  --foreground: #f2f1f9;
+  --background: #070607; /* Obsidian canvas */
+  --foreground: #f7f6f2;
 
-  --card: #14121f;
-  --card-foreground: #f2f1f9;
+  --card: #17151a;
+  --card-foreground: #f7f6f2;
 
-  --popover: #191627;
-  --popover-foreground: #f2f1f9;
+  --popover: #17151a;
+  --popover-foreground: #f7f6f2;
 
-  /* Lighter brand tone for dark surfaces — desaturated, not inverted */
-  --primary: #8b82e8;
-  --primary-foreground: #120f24;
-  --primary-hover: #9d95ef;
+  --primary: #fc5000;
+  --primary-foreground: #070607;
+  --primary-hover: #ff6a1f;
 
-  --secondary: #211d35;
-  --secondary-foreground: #ded9f7;
+  --secondary: #221f22;
+  --secondary-foreground: #f7f6f2;
 
-  --accent: #241f3b;
-  --accent-foreground: #ded9f7;
+  --accent: #6c64f5;
+  --accent-foreground: #ffffff;
 
-  --muted: #1b1829;
-  /* #a8a3d0 on #14121f = 7.85:1 */
-  --muted-foreground: #a8a3d0;
+  --muted: #221f22;
+  --muted-foreground: #b7b4ae;
 
-  --border: #2a2540;
-  --input: #322c4c;
-  --ring: #8b82e8;
+  --border: #322e30;
+  --input: #322e30;
+  --ring: #fc5000;
 
   --destructive: #f97066;
   --destructive-foreground: #12101c;
@@ -140,22 +137,22 @@
   --expense: #fdb022;
   --expense-subtle: #26190a;
 
-  --chart-1: #9b92f0;
-  --chart-2: #2dd4bf;
-  --chart-3: #fbbf24;
-  --chart-4: #f472b6;
+  --chart-1: #ff7a3d;
+  --chart-2: #8a82f5;
+  --chart-3: #3ccb9a;
+  --chart-4: #fdb022;
   --chart-5: #60a5fa;
   --chart-6: #94a3b8;
-  --chart-grid: #241f38;
+  --chart-grid: #2a2730;
 
-  --sidebar: #100e1b;
-  --sidebar-foreground: #f2f1f9;
-  --sidebar-primary: #8b82e8;
-  --sidebar-primary-foreground: #120f24;
-  --sidebar-accent: #211d35;
-  --sidebar-accent-foreground: #ded9f7;
-  --sidebar-border: #24203a;
-  --sidebar-ring: #8b82e8;
+  --sidebar: #17151a;
+  --sidebar-foreground: #f7f6f2;
+  --sidebar-primary: #fc5000;
+  --sidebar-primary-foreground: #070607;
+  --sidebar-accent: #221f22;
+  --sidebar-accent-foreground: #f7f6f2;
+  --sidebar-border: #322e30;
+  --sidebar-ring: #fc5000;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -217,27 +214,28 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 1rem;
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-card);
+  --radius-xl: var(--radius-card);
+  --radius-full: var(--radius-pill);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
-  /* Type scale — 1.200 minor third off a 16px base */
-  --text-2xs: 0.6875rem; /* 11px — overlines only, never body */
-  --text-xs: 0.75rem; /* 12px */
-  --text-sm: 0.875rem; /* 14px */
+  /* Type scale — condensed display steps from the Caldera reference */
+  --text-2xs: 0.75rem; /* 12px — captions, meta text */
+  --text-xs: 0.875rem; /* 14px */
+  --text-sm: 1rem; /* 16px */
   --text-base: 1rem; /* 16px */
   --text-lg: 1.125rem; /* 18px */
-  --text-xl: 1.375rem; /* 22px */
-  --text-2xl: 1.75rem; /* 28px */
-  --text-3xl: 2.125rem; /* 34px */
-  --text-4xl: 2.75rem; /* 44px */
-  --text-5xl: 3.5rem; /* 56px */
-  --text-6xl: 4.5rem; /* 72px */
+  --text-xl: 1.625rem; /* 26px — subheading */
+  --text-2xl: 2rem; /* 32px — heading */
+  --text-3xl: 3rem; /* 48px — heading-lg */
+  --text-4xl: 5rem; /* 80px — heading-2xl */
+  --text-5xl: 6rem; /* 96px — heading-3xl */
+  --text-6xl: 8rem; /* 128px — display, clamped down from 189px for layout sanity */
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -317,10 +315,11 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .font-display {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+  font-family: var(--font-display), "Arial Narrow", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  text-transform: uppercase;
 }
 
 .font-mono {

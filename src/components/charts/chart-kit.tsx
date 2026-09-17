@@ -89,7 +89,7 @@ export function ChartTooltip({
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="min-w-36 rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="min-w-36 rounded-lg border-[1.5px] border-foreground bg-popover px-3 py-2 text-xs">
       {!hideLabel && label !== undefined && (
         <p className="mb-1.5 font-medium text-popover-foreground">
           {labelFormatter ? labelFormatter(label) : label}

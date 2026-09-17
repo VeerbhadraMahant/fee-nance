@@ -31,10 +31,10 @@ function SheetContent({
       />
       <DialogPrimitive.Content
         className={cn(
-          "fixed inset-y-0 z-50 flex h-dvh w-[min(19rem,85vw)] flex-col bg-sidebar text-sidebar-foreground shadow-2xl outline-none",
+          "fixed inset-y-0 z-50 flex h-dvh w-[min(19rem,85vw)] flex-col bg-sidebar text-sidebar-foreground outline-none",
           side === "left"
-            ? "left-0 border-r border-sidebar-border data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left"
-            : "right-0 border-l border-sidebar-border data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
+            ? "left-0 border-r-[1.5px] border-sidebar-border data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left"
+            : "right-0 border-l-[1.5px] border-sidebar-border data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}

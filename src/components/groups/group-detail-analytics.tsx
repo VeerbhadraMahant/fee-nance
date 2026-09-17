@@ -90,6 +90,7 @@ const SPLIT_LABEL: Record<string, string> = {
   equal: "Equal",
   custom: "Exact amounts",
   percentage: "Percentage",
+  itemized: "By item",
 };
 
 /** "2025-03" → "Mar 25" */

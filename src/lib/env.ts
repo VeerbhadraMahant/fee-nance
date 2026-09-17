@@ -6,6 +6,9 @@ const optionalEnvSchema = z.object({
   NEXTAUTH_SECRET: z.string().min(16).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  // Selects a receipt OCR implementation from src/lib/receipt/registry.ts.
+  // Unset or "none" means receipt scanning is simply unavailable.
+  RECEIPT_EXTRACTOR: z.string().min(1).optional(),
 });
 
 const parsed = optionalEnvSchema.parse(process.env);
@@ -30,4 +33,5 @@ export const env = {
   },
   GOOGLE_CLIENT_ID: parsed.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: parsed.GOOGLE_CLIENT_SECRET,
+  RECEIPT_EXTRACTOR: parsed.RECEIPT_EXTRACTOR,
 };

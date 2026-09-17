@@ -2,7 +2,7 @@ import {
   ArrowLeftRight,
   ChartPie,
   LayoutDashboard,
-  User,
+  Radar,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +19,10 @@ export interface NavItem {
 /**
  * Top-level destinations. Capped at 5 — that is the ceiling for a usable
  * bottom navigation bar, and it keeps the sidebar scannable.
+ *
+ * Profile is deliberately absent: it lives in the account menu in the sidebar
+ * footer, which is where people look for it anyway, and holding it here would
+ * have cost Insights its slot.
  */
 export const NAV_ITEMS: NavItem[] = [
   {
@@ -44,15 +48,15 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/analytics",
     label: "Analytics",
-    shortLabel: "Insights",
+    shortLabel: "Trends",
     icon: ChartPie,
     description: "Deeper breakdowns and trajectory",
   },
   {
-    href: "/profile",
-    label: "Profile",
-    icon: User,
-    description: "Account details and preferences",
+    href: "/insights",
+    label: "Insights",
+    icon: Radar,
+    description: "Cash-flow forecast and unusual activity",
   },
 ];
 

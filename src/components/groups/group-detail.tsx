@@ -191,6 +191,7 @@ const SPLIT_LABEL: Record<string, string> = {
   equal: "Equal",
   custom: "Exact",
   percentage: "Percentage",
+  itemized: "By item",
 };
 
 function ExpensesTab({

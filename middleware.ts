@@ -7,6 +7,7 @@ export const config = {
     "/groups/:path*",
     "/profile/:path*",
     "/analytics/:path*",
+    "/insights/:path*",
     "/accounts/:path*",
     "/api/private/:path*",
   ],

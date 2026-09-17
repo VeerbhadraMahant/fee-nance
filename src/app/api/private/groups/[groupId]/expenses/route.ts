@@ -9,28 +9,45 @@ import { logger } from "@/lib/logger";
 import { Group } from "@/models/Group";
 import { GroupExpense } from "@/models/GroupExpense";
 
-const createExpenseSchema = z.object({
-  title: z.string().trim().min(2).max(120),
-  notes: z.string().trim().max(500).optional(),
-  amount: z.number().positive(),
-  splitType: z.enum(["equal", "custom", "percentage"]),
-  paidBy: z.array(
-    z.object({
-      userId: z.string(),
-      amount: z.number().positive(),
-    }),
-  ),
-  splits: z
-    .array(
+const createExpenseSchema = z
+  .object({
+    title: z.string().trim().min(2).max(120),
+    notes: z.string().trim().max(500).optional(),
+    amount: z.number().positive(),
+    splitType: z.enum(["equal", "custom", "percentage", "itemized"]),
+    paidBy: z.array(
       z.object({
         userId: z.string(),
-        amount: z.number().positive().optional(),
-        percentage: z.number().positive().optional(),
+        amount: z.number().positive(),
       }),
-    )
-    .optional(),
-  incurredAt: z.string().datetime().optional(),
-});
+    ),
+    splits: z
+      .array(
+        z.object({
+          userId: z.string(),
+          amount: z.number().positive().optional(),
+          percentage: z.number().positive().optional(),
+        }),
+      )
+      .optional(),
+    lineItems: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(80),
+          amount: z.number().positive(),
+          sharedBy: z.array(z.string()).min(1),
+          proportional: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .max(60)
+      .optional(),
+    incurredAt: z.string().datetime().optional(),
+  })
+  .refine(
+    (payload) => (payload.splitType === "itemized") === Boolean(payload.lineItems),
+    { message: "Line items are required for an itemized split, and not valid for any other" },
+  );
 
 const expenseQuerySchema = z.object({
   startDate: z.string().datetime().optional(),
@@ -185,7 +202,14 @@ export async function POST(
     }
 
     const splitEntries = payload.splits ?? [];
-    const shares = computeShares(payload.amount, payload.splitType, splitEntries, memberIds);
+    const lineItems = payload.lineItems ?? [];
+    const shares = computeShares(
+      payload.amount,
+      payload.splitType,
+      splitEntries,
+      memberIds,
+      lineItems,
+    );
     validatePayers(payload.amount, payload.paidBy);
 
     const expense = await GroupExpense.create({
@@ -210,6 +234,12 @@ export async function POST(
           shareAmount: share.shareAmount,
         };
       }),
+      lineItems: lineItems.map((item) => ({
+        label: item.label,
+        amount: item.amount,
+        sharedBy: item.sharedBy.map((userId) => toObjectId(userId)),
+        proportional: item.proportional ?? false,
+      })),
       incurredAt: payload.incurredAt ? new Date(payload.incurredAt) : new Date(),
     });
 
