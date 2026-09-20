@@ -9,10 +9,13 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  Layer,
   Line,
   Pie,
   PieChart,
+  Rectangle,
   ReferenceLine,
+  Sankey,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
@@ -398,6 +401,167 @@ function QuarterlyChart({ data }: { data: AnalyticsPayload["quarterlyData"] }) {
   );
 }
 
+/* ── Money flow (Sankey) ───────────────────────────────────────────────── */
+
+interface SankeyNodeDatum {
+  name: string;
+  color: string;
+}
+
+function FlowNode({
+  x,
+  y,
+  width,
+  height,
+  payload,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  payload: SankeyNodeDatum & { value: number };
+}) {
+  // Raw SVG <text> doesn't support CSS ellipsis, and node labels sit in a
+  // fixed-width margin — a long custom category name would otherwise run
+  // past the chart edge, so it's clipped here instead.
+  const MAX_LABEL_LENGTH = 16;
+  const label =
+    payload.name.length > MAX_LABEL_LENGTH
+      ? `${payload.name.slice(0, MAX_LABEL_LENGTH - 1)}…`
+      : payload.name;
+
+  return (
+    <Layer>
+      <Rectangle
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={payload.color}
+        fillOpacity={0.9}
+        radius={2}
+      />
+      <text
+        x={x + width + 8}
+        y={y + height / 2}
+        dy="0.35em"
+        className="fill-foreground text-xs"
+        textAnchor="start"
+      >
+        <title>{payload.name}</title>
+        {label}
+      </text>
+      <text
+        x={x + width + 8}
+        y={y + height / 2}
+        dy="1.6em"
+        className="fill-muted-foreground text-2xs tabular"
+        textAnchor="start"
+      >
+        {formatCurrency(payload.value)}
+      </text>
+    </Layer>
+  );
+}
+
+function buildFlowData(
+  incomeBreakdown: CategoryEntry[],
+  categoryBreakdown: CategoryEntry[],
+  netSavings: number,
+) {
+  const nodes: SankeyNodeDatum[] = [];
+  const links: Array<{ source: number; target: number; value: number }> = [];
+
+  const incomeSources = incomeBreakdown.filter((c) => c.total > 0);
+  const expenseCategories = categoryBreakdown.filter((c) => c.total > 0);
+
+  if (!incomeSources.length || !expenseCategories.length) return null;
+
+  incomeSources.forEach((entry, i) => {
+    nodes.push({ name: entry.categoryName, color: chartColor(i) });
+  });
+
+  const incomeHubIndex = nodes.length;
+  nodes.push({ name: "Income", color: "var(--chart-2)" });
+
+  incomeSources.forEach((entry, i) => {
+    links.push({ source: i, target: incomeHubIndex, value: entry.total });
+  });
+
+  const spendingHubIndex = nodes.length;
+  nodes.push({ name: "Spending", color: "var(--chart-3)" });
+  links.push({
+    source: incomeHubIndex,
+    target: spendingHubIndex,
+    value: expenseCategories.reduce((sum, c) => sum + c.total, 0),
+  });
+
+  if (netSavings > 0) {
+    const savingsIndex = nodes.length;
+    nodes.push({ name: "Savings", color: "var(--chart-1)" });
+    links.push({ source: incomeHubIndex, target: savingsIndex, value: netSavings });
+  }
+
+  expenseCategories.forEach((entry, i) => {
+    const targetIndex = nodes.length;
+    nodes.push({ name: entry.categoryName, color: chartColor(i + 1) });
+    links.push({ source: spendingHubIndex, target: targetIndex, value: entry.total });
+  });
+
+  return { nodes, links };
+}
+
+function MoneyFlowChart({
+  incomeBreakdown,
+  categoryBreakdown,
+  netSavings,
+}: {
+  incomeBreakdown: CategoryEntry[];
+  categoryBreakdown: CategoryEntry[];
+  netSavings: number;
+}) {
+  const flowData = React.useMemo(
+    () => buildFlowData(incomeBreakdown, categoryBreakdown, netSavings),
+    [incomeBreakdown, categoryBreakdown, netSavings],
+  );
+
+  if (!flowData) {
+    return (
+      <EmptyState
+        icon={ChartPie}
+        title="Nothing to trace yet"
+        description="Log both income and expenses in this period to see where your money comes from and where it goes."
+      />
+    );
+  }
+
+  return (
+    <ChartFrame
+      height={Math.max(320, flowData.nodes.length * 34)}
+      summary="Sankey diagram tracing money from each income source, through total spending, to every expense category."
+    >
+      <Sankey
+        data={flowData}
+        node={(props: unknown) => <FlowNode {...(props as React.ComponentProps<typeof FlowNode>)} />}
+        link={{ stroke: "var(--border)", strokeOpacity: 0.5 }}
+        nodePadding={24}
+        nodeWidth={10}
+        margin={{ top: 8, right: 140, bottom: 8, left: 8 }}
+      >
+        <RechartsTooltip
+          formatter={(value) => formatCurrency(Number(value))}
+          contentStyle={{
+            background: "var(--popover)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            color: "var(--popover-foreground)",
+          }}
+        />
+      </Sankey>
+    </ChartFrame>
+  );
+}
+
 /* ── Main ──────────────────────────────────────────────────────────────── */
 
 export function AnalyticsSuite() {
@@ -488,6 +652,7 @@ export function AnalyticsSuite() {
       <Tabs defaultValue="trend">
         <TabsList>
           <TabsTrigger value="trend">Trend</TabsTrigger>
+          <TabsTrigger value="flow">Flow</TabsTrigger>
           <TabsTrigger value="spending">Spending</TabsTrigger>
           <TabsTrigger value="income">Income</TabsTrigger>
           <TabsTrigger value="quarters">Quarters</TabsTrigger>
@@ -515,6 +680,25 @@ export function AnalyticsSuite() {
             </CardHeader>
             <CardContent className="pt-0">
               <SavingsAreaChart data={monthlyTrend} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="flow">
+          <Card>
+            <CardHeader>
+              <CardTitle>Where your money comes from and where it goes</CardTitle>
+              <CardDescription>
+                Each income source flows in, and total spending fans back out
+                to every expense category.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <MoneyFlowChart
+                incomeBreakdown={incomeBreakdown}
+                categoryBreakdown={categoryBreakdown}
+                netSavings={summary.netSavings}
+              />
             </CardContent>
           </Card>
         </TabsContent>

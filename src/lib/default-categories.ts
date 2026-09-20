@@ -10,18 +10,28 @@ const DEFAULT_CATEGORIES = [
   { name: "Utilities", type: "expense", icon: "bolt", color: "#7F5A31" },
 ] as const;
 
+// Once this process has confirmed the system categories exist, never check
+// again — they're never deleted, so re-checking on every request (this used
+// to be 7 sequential upserts per call) was pure latency for no benefit.
+let ensured = false;
+
 export async function ensureDefaultCategories() {
-  for (const category of DEFAULT_CATEGORIES) {
-    await Category.updateOne(
-      { userId: null, name: category.name, type: category.type },
-      {
-        $setOnInsert: {
-          ...category,
-          userId: null,
-          isSystem: true,
-        },
-      },
-      { upsert: true },
-    );
+  if (ensured) return;
+
+  const existingCount = await Category.countDocuments({ userId: null, isSystem: true });
+  if (existingCount >= DEFAULT_CATEGORIES.length) {
+    ensured = true;
+    return;
   }
+
+  await Promise.all(
+    DEFAULT_CATEGORIES.map((category) =>
+      Category.updateOne(
+        { userId: null, name: category.name, type: category.type },
+        { $setOnInsert: { ...category, userId: null, isSystem: true } },
+        { upsert: true },
+      ),
+    ),
+  );
+  ensured = true;
 }

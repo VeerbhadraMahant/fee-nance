@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/db";
 import { parseDate, jsonError } from "@/lib/http";
 import { toObjectId } from "@/lib/object-id";
 import { logger } from "@/lib/logger";
+import { Budget } from "@/models/Budget";
 import { Category } from "@/models/Category";
 import { Group } from "@/models/Group";
 import { Transaction } from "@/models/Transaction";
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
       },
     };
 
-    const [summaryByType, categoryBreakdownRaw, monthlyTrend, groupCount] = await Promise.all([
+    const [summaryByType, categoryBreakdownRaw, monthlyTrend, groupCount, budgetsRaw] = await Promise.all([
       Transaction.aggregate([
         { $match: transactionMatch },
         {
@@ -73,7 +74,44 @@ export async function GET(request: Request) {
         { $sort: { "_id.year": 1, "_id.month": 1 } },
       ]),
       Group.countDocuments({ "members.userId": userObjectId }),
+      Budget.find({
+        userId: userObjectId,
+        periodStart: { $lte: endDate },
+        periodEnd: { $gte: startDate },
+      }).lean(),
     ]);
+
+    const budgets = await Promise.all(
+      budgetsRaw.map(async (budget) => {
+        const spendMatch: Record<string, unknown> = {
+          userId: userObjectId,
+          type: "expense",
+          transactionDate: { $gte: budget.periodStart, $lte: budget.periodEnd },
+        };
+        if (budget.categoryId) {
+          spendMatch.categoryId = budget.categoryId;
+        }
+
+        const [spendResult] = await Transaction.aggregate([
+          { $match: spendMatch },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]);
+
+        const spent = spendResult?.total ?? 0;
+        const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+
+        return {
+          _id: budget._id.toString(),
+          name: budget.name,
+          amount: budget.amount,
+          spent,
+          pct,
+          over: spent > budget.amount,
+        };
+      }),
+    );
+
+    const budgetAlerts = budgets.filter((b) => b.pct >= 80).sort((a, b) => b.pct - a.pct);
 
     const totalIncome = summaryByType.find((entry) => entry._id === "income")?.total ?? 0;
     const totalExpense = summaryByType.find((entry) => entry._id === "expense")?.total ?? 0;
@@ -99,6 +137,7 @@ export async function GET(request: Request) {
         balance: totalIncome - totalExpense,
       },
       groupCount,
+      budgetAlerts,
       categoryBreakdown: categoryBreakdownRaw.map((entry) => ({
         categoryId: entry._id,
         categoryName: categoryMap.get(entry._id?.toString?.() ?? "") ?? "Uncategorized",

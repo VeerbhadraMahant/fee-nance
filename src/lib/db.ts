@@ -15,18 +15,28 @@ const globalCache = globalThis.mongooseCache ?? {
 
 globalThis.mongooseCache = globalCache;
 
+const isProduction = process.env.NODE_ENV === "production";
+
+// autoIndex makes every fresh connection verify/build indexes against the
+// schema — useful in dev, but on serverless (Vercel) each cold start pays
+// that cost again for no reason once indexes already exist. Off in prod.
+// maxPoolSize is capped low because serverless functions are short-lived and
+// many concurrent connections to Atlas add up fast across instances.
+const connectionOptions = {
+  dbName: "fee-nance",
+  autoIndex: !isProduction,
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 8000,
+};
+
 // Dev-only fallback: if the configured MONGODB_URI (e.g. a paused/misconfigured
 // Atlas cluster) can't be reached, spin up an in-memory MongoDB so local dev
 // and testing aren't blocked on external infra. Never used in production.
 async function connectWithDevFallback() {
   try {
-    return await mongoose.connect(env.MONGODB_URI, {
-      dbName: "fee-nance",
-      autoIndex: true,
-      serverSelectionTimeoutMS: 8000,
-    });
+    return await mongoose.connect(env.MONGODB_URI, connectionOptions);
   } catch (err) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProduction) {
       throw err;
     }
 

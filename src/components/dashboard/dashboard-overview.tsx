@@ -29,8 +29,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useQuery, readApiError } from "@/lib/use-query";
 import { formatCompact, formatCurrency, formatPercent, monthLabel } from "@/lib/format";
-import { spendFor } from "@/components/finance/budgets-tab";
-import type { Budget, Transaction } from "@/components/finance/types";
 import {
   DateRangeFilter,
   defaultRange,
@@ -64,6 +62,7 @@ import { toast } from "@/components/ui/toaster";
 interface DashboardSummary {
   totals: { income: number; expense: number; balance: number };
   groupCount: number;
+  budgetAlerts: BudgetAlert[];
   categoryBreakdown: Array<{
     categoryId: string | null;
     categoryName: string;
@@ -262,24 +261,18 @@ function DashboardSkeleton() {
 
 /* ── Budget alerts ─────────────────────────────────────────────────────── */
 
-/** Quiet by default — only takes up space when a budget actually needs attention. */
-function BudgetAlerts({ startDate, endDate }: { startDate: string; endDate: string }) {
-  const { data } = useQuery<{ budgets: Budget[]; transactions: Transaction[] }>(
-    `/api/private/finance/aggregate?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
-  );
+interface BudgetAlert {
+  _id: string;
+  name: string;
+  amount: number;
+  spent: number;
+  pct: number;
+  over: boolean;
+}
 
-  const alerts = React.useMemo(() => {
-    if (!data) return [];
-    return data.budgets
-      .map((budget) => {
-        const spent = spendFor(budget, data.transactions);
-        const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
-        return { budget, spent, pct, over: spent > budget.amount };
-      })
-      .filter((entry) => entry.pct >= 80)
-      .sort((a, b) => b.pct - a.pct);
-  }, [data]);
-
+/** Quiet by default — only takes up space when a budget actually needs attention.
+ *  Computed server-side (dashboard summary) so this never costs its own request. */
+function BudgetAlerts({ alerts }: { alerts: BudgetAlert[] }) {
   if (!alerts.length) return null;
 
   return (
@@ -291,15 +284,15 @@ function BudgetAlerts({ startDate, endDate }: { startDate: string; endDate: stri
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
-        {alerts.map(({ budget, spent, pct, over }) => (
+        {alerts.map(({ _id, name, spent, amount, pct, over }) => (
           <div
-            key={budget._id}
+            key={_id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
           >
-            <span className="font-medium">{budget.name}</span>
-            <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+            <div className="flex shrink-0 items-center gap-2">
               <span className="tabular text-muted-foreground">
-                {formatCurrency(spent)} of {formatCurrency(budget.amount)}
+                {formatCurrency(spent)} of {formatCurrency(amount)}
               </span>
               <Badge variant={over ? "destructive" : "warning"}>
                 {pct.toFixed(0)}% used
@@ -350,7 +343,7 @@ export function DashboardOverview() {
     );
   }
 
-  const { totals, categoryBreakdown, monthlyTrend, groupCount } = data;
+  const { totals, categoryBreakdown, monthlyTrend, groupCount, budgetAlerts } = data;
   const savingsRate =
     totals.income > 0 ? (totals.balance / totals.income) * 100 : null;
 
@@ -416,7 +409,7 @@ export function DashboardOverview() {
         />
       </section>
 
-      <BudgetAlerts startDate={startDate} endDate={endDate} />
+      <BudgetAlerts alerts={budgetAlerts} />
 
       {/* ── Charts ──────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
