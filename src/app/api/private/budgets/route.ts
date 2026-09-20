@@ -27,19 +27,19 @@ export async function GET(request: Request) {
 
     const query: {
       userId: ReturnType<typeof toObjectId>;
-      periodStart?: { $gte?: Date; $lte?: Date };
+      periodStart?: { $lte: Date };
+      periodEnd?: { $gte: Date };
     } = {
       userId: toObjectId(userId),
     };
 
-    if (startDate || endDate) {
-      query.periodStart = {};
-      if (startDate) {
-        query.periodStart.$gte = startDate;
-      }
-      if (endDate) {
-        query.periodStart.$lte = endDate;
-      }
+    // A budget is relevant to the selected window if its period overlaps it
+    // at all — not just when it happens to start inside the window.
+    if (endDate) {
+      query.periodStart = { $lte: endDate };
+    }
+    if (startDate) {
+      query.periodEnd = { $gte: startDate };
     }
 
     const budgets = await Budget.find(query).sort({ periodStart: -1 }).lean();

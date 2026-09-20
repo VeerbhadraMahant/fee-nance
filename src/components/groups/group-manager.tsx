@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Copy, Plus, UserPlus, Users } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { ArrowRight, Check, Copy, LogOut, Plus, Trash2, UserPlus, Users } from "lucide-react";
 
 import { readApiError, useQuery } from "@/lib/use-query";
 import { initials } from "@/lib/format";
@@ -13,6 +14,7 @@ import { Field } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/misc";
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogBody,
@@ -296,6 +298,36 @@ export function GroupManager() {
   const [joinOpen, setJoinOpen] = React.useState(false);
   const { data, isLoading, error, reload } =
     useQuery<{ groups: Group[] }>("/api/private/groups");
+  const { data: session } = useSession();
+  const { confirm, confirmDialog } = useConfirm();
+
+  const handleDelete = async (group: Group) => {
+    const isOwner = group.members.some(
+      (m) => m.userId._id === session?.user?.id && m.role === "owner",
+    );
+
+    const ok = await confirm({
+      title: isOwner ? `Delete "${group.name}"?` : `Leave "${group.name}"?`,
+      description: isOwner
+        ? "This permanently deletes the group along with its expenses and settlements for every member. It can't be undone."
+        : "You'll no longer see this group's expenses or balances. Other members keep the group.",
+      confirmLabel: isOwner ? "Delete" : "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const response = await fetch(`/api/private/groups/${group._id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      toast.error(await readApiError(response, "Couldn't remove this group"));
+      return;
+    }
+
+    toast.success(isOwner ? "Group deleted" : "You left the group");
+    reload();
+  };
 
   if (isLoading) {
     return (
@@ -339,7 +371,12 @@ export function GroupManager() {
 
       {data.groups.length ? (
         <ul className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {data.groups.map((group) => (
+          {data.groups.map((group) => {
+            const isOwner = group.members.some(
+              (m) => m.userId._id === session?.user?.id && m.role === "owner",
+            );
+
+            return (
             <li key={group._id}>
               <Card interactive className="group flex h-full flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -357,7 +394,24 @@ export function GroupManager() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4">
-                  <InviteCode code={group.inviteCode} />
+                  <div className="flex items-center gap-1">
+                    <InviteCode code={group.inviteCode} />
+                    <Tooltip content={isOwner ? "Delete group" : "Leave group"}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(group)}
+                      >
+                        {isOwner ? (
+                          <Trash2 className="size-3.5" />
+                        ) : (
+                          <LogOut className="size-3.5" />
+                        )}
+                        <span className="sr-only">Remove group</span>
+                      </Button>
+                    </Tooltip>
+                  </div>
                   <Button variant="ghost" size="sm" asChild>
                     <Link href={`/groups/${group._id}`}>
                       Open
@@ -367,7 +421,8 @@ export function GroupManager() {
                 </div>
               </Card>
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : (
         <EmptyState
@@ -386,6 +441,7 @@ export function GroupManager() {
         onDone={reload}
       />
       <JoinGroupDialog open={joinOpen} onOpenChange={setJoinOpen} onDone={reload} />
+      {confirmDialog}
     </div>
   );
 }
