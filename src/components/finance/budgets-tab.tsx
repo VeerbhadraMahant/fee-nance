@@ -115,11 +115,11 @@ export function BudgetsTab({
                 </DropdownMenu>
               </div>
 
-              <div className="mt-4 flex items-baseline justify-between gap-2">
-                <span className="tabular text-xl font-semibold">
+              <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                <span className="tabular min-w-0 truncate text-xl font-semibold">
                   {formatCurrency(spent)}
                 </span>
-                <span className="tabular text-sm text-muted-foreground">
+                <span className="tabular min-w-0 truncate text-sm text-muted-foreground">
                   of {formatCurrency(budget.amount)}
                 </span>
               </div>

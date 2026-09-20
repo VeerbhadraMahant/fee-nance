@@ -60,8 +60,21 @@ export function StatCard({
     typeof value === "number" && currency ? formatCurrency(value) : value;
   const DeltaIcon = (delta ?? 0) >= 0 ? TrendingUp : TrendingDown;
 
+  // A grid item's default min-width is its content's natural width, which lets
+  // a long unbroken string (a currency amount has no spaces to wrap on) force
+  // the whole grid track wider and spill into the next card. min-w-0 lets the
+  // card actually shrink to its track; the font size then scales down with
+  // the string length so the amount still fits without truncating the value.
+  const displayText = String(display);
+  const valueSizeClass =
+    displayText.length > 14
+      ? "text-base sm:text-lg"
+      : displayText.length > 10
+        ? "text-lg sm:text-xl"
+        : "text-xl sm:text-2xl";
+
   return (
-    <Card className={cn("p-5", className)}>
+    <Card className={cn("min-w-0 p-5", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="overline">{label}</p>
         {Icon && (
@@ -79,9 +92,11 @@ export function StatCard({
 
       <p
         className={cn(
-          "tabular mt-2.5 font-display text-3xl normal-case leading-none tracking-normal",
+          "tabular mt-2.5 truncate font-display normal-case leading-none tracking-normal",
+          valueSizeClass,
           styles.value,
         )}
+        title={displayText}
       >
         {display}
       </p>
