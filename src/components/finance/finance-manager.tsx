@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Download, Plus, Wallet } from "lucide-react";
 
 import { useQuery, readApiError } from "@/lib/use-query";
+import { downloadCsv } from "@/lib/csv";
 import { toQueryRange, defaultRange, DateRangeFilter, type DateRange } from "@/components/shared/date-range-filter";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,34 @@ export function FinanceManager() {
     }
     return result;
   }, [transactions]);
+
+  const categoryName = React.useCallback(
+    (categoryId: string | undefined) =>
+      categories.find((c) => c._id === categoryId)?.name ?? "Uncategorised",
+    [categories],
+  );
+
+  const handleExportTransactions = () => {
+    const ordered = [...transactions].sort(
+      (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime(),
+    );
+
+    downloadCsv(
+      `fee-nance-transactions-${startDate.slice(0, 10)}-to-${endDate.slice(0, 10)}.csv`,
+      ["Date", "Title", "Type", "Category", "Amount", "Currency", "Balance", "Notes"],
+      ordered.map((txn) => [
+        new Date(txn.transactionDate).toISOString().slice(0, 10),
+        txn.title,
+        txn.type,
+        categoryName(txn.categoryId),
+        txn.amount,
+        txn.currency,
+        runningBalance.get(txn._id) ?? "",
+        txn.notes ?? "",
+      ]),
+    );
+    toast.success(`Exported ${ordered.length} transaction${ordered.length === 1 ? "" : "s"}`);
+  };
 
   /* ── Delete handlers, all routed through the confirm dialog ─────────── */
 
@@ -218,11 +247,19 @@ export function FinanceManager() {
             </TabsTrigger>
           </TabsList>
 
-          {/* One primary CTA on the screen, scoped to the visible tab. */}
-          <Button onClick={primaryAction.onClick} className="sm:w-auto">
-            <Plus className="size-4" />
-            {primaryAction.label}
-          </Button>
+          <div className="flex gap-2">
+            {tab === "transactions" && transactions.length > 0 && (
+              <Button variant="outline" onClick={handleExportTransactions}>
+                <Download className="size-4" />
+                Export CSV
+              </Button>
+            )}
+            {/* One primary CTA on the screen, scoped to the visible tab. */}
+            <Button onClick={primaryAction.onClick} className="sm:w-auto">
+              <Plus className="size-4" />
+              {primaryAction.label}
+            </Button>
+          </div>
         </div>
 
         <TabsContent value="transactions">

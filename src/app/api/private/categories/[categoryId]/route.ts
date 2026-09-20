@@ -5,7 +5,9 @@ import { jsonError } from "@/lib/http";
 import { isMongoDuplicateKeyError } from "@/lib/mongo-errors";
 import { toObjectId } from "@/lib/object-id";
 import { logger } from "@/lib/logger";
+import { Budget } from "@/models/Budget";
 import { Category } from "@/models/Category";
+import { Transaction } from "@/models/Transaction";
 
 const updateCategorySchema = z
   .object({
@@ -115,7 +117,20 @@ export async function DELETE(
       return jsonError("Cannot delete system or external category", 403);
     }
 
-    await Category.deleteOne({ _id: category._id });
+    // Categories are referenced by transactions and budgets; deleting one
+    // out from under them would leave a dangling ObjectId, so clear the
+    // reference on both rather than cascading the delete.
+    await Promise.all([
+      Category.deleteOne({ _id: category._id }),
+      Transaction.updateMany(
+        { userId: toObjectId(userId), categoryId: category._id },
+        { $unset: { categoryId: "" } },
+      ),
+      Budget.updateMany(
+        { userId: toObjectId(userId), categoryId: category._id },
+        { $unset: { categoryId: "" } },
+      ),
+    ]);
 
     return Response.json({ success: true });
   } catch (error) {

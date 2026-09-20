@@ -19,7 +19,7 @@ import {
 import type { Budget, Category, Transaction } from "./types";
 
 /** Spend actually booked against a budget's category and period. */
-function spendFor(budget: Budget, transactions: Transaction[]) {
+export function spendFor(budget: Budget, transactions: Transaction[]) {
   const start = new Date(budget.periodStart).getTime();
   const end = new Date(budget.periodEnd).getTime();
 

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   Copy,
+  Download,
   HandCoins,
   Handshake,
   Plus,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { useQuery } from "@/lib/use-query";
+import { downloadCsv } from "@/lib/csv";
 import { formatCurrency, formatDate, formatRelative, initials } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -197,9 +199,11 @@ const SPLIT_LABEL: Record<string, string> = {
 function ExpensesTab({
   expenses,
   onCreate,
+  onExport,
 }: {
   expenses: GroupExpense[];
   onCreate: () => void;
+  onExport: () => void;
 }) {
   if (!expenses.length) {
     return (
@@ -220,13 +224,19 @@ function ExpensesTab({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        {expenses.length} expense{expenses.length === 1 ? "" : "s"} ·{" "}
-        <span className="tabular font-medium text-foreground">
-          {formatCurrency(total)}
-        </span>{" "}
-        total
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {expenses.length} expense{expenses.length === 1 ? "" : "s"} ·{" "}
+          <span className="tabular font-medium text-foreground">
+            {formatCurrency(total)}
+          </span>{" "}
+          total
+        </p>
+        <Button variant="outline" size="sm" onClick={onExport}>
+          <Download className="size-3.5" />
+          Export CSV
+        </Button>
+      </div>
 
       <Card className="overflow-hidden">
         <ul>
@@ -346,6 +356,25 @@ export function GroupDetail({ groupId }: { groupId: string }) {
     [nameMap],
   );
 
+  const handleExportExpenses = React.useCallback(() => {
+    const expenses = expensesQuery.data?.expenses ?? [];
+    const ordered = [...expenses].sort(
+      (a, b) => new Date(a.incurredAt).getTime() - new Date(b.incurredAt).getTime(),
+    );
+
+    downloadCsv(
+      `${groupQuery.data?.group.name ?? "group"}-expenses.csv`,
+      ["Date", "Title", "Split type", "Amount", "Notes"],
+      ordered.map((expense) => [
+        new Date(expense.incurredAt).toISOString().slice(0, 10),
+        expense.title,
+        expense.splitType,
+        expense.amount,
+        expense.notes ?? "",
+      ]),
+    );
+  }, [expensesQuery.data, groupQuery.data]);
+
   const refreshAll = React.useCallback(() => {
     groupQuery.reload();
     expensesQuery.reload();
@@ -460,7 +489,11 @@ export function GroupDetail({ groupId }: { groupId: string }) {
           {expensesQuery.isLoading ? (
             <Skeleton className="h-64" />
           ) : (
-            <ExpensesTab expenses={expenses} onCreate={() => setExpenseOpen(true)} />
+            <ExpensesTab
+              expenses={expenses}
+              onCreate={() => setExpenseOpen(true)}
+              onExport={handleExportExpenses}
+            />
           )}
         </TabsContent>
 

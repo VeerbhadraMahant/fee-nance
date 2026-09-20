@@ -14,6 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
@@ -28,6 +29,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useQuery, readApiError } from "@/lib/use-query";
 import { formatCompact, formatCurrency, formatPercent, monthLabel } from "@/lib/format";
+import { spendFor } from "@/components/finance/budgets-tab";
+import type { Budget, Transaction } from "@/components/finance/types";
 import {
   DateRangeFilter,
   defaultRange,
@@ -257,6 +260,58 @@ function DashboardSkeleton() {
   );
 }
 
+/* ── Budget alerts ─────────────────────────────────────────────────────── */
+
+/** Quiet by default — only takes up space when a budget actually needs attention. */
+function BudgetAlerts({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const { data } = useQuery<{ budgets: Budget[]; transactions: Transaction[] }>(
+    `/api/private/finance/aggregate?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+  );
+
+  const alerts = React.useMemo(() => {
+    if (!data) return [];
+    return data.budgets
+      .map((budget) => {
+        const spent = spendFor(budget, data.transactions);
+        const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+        return { budget, spent, pct, over: spent > budget.amount };
+      })
+      .filter((entry) => entry.pct >= 80)
+      .sort((a, b) => b.pct - a.pct);
+  }, [data]);
+
+  if (!alerts.length) return null;
+
+  return (
+    <Card className="border-warning/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-warning">
+          <AlertTriangle className="size-4" aria-hidden="true" />
+          Budget alerts
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-0">
+        {alerts.map(({ budget, spent, pct, over }) => (
+          <div
+            key={budget._id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
+          >
+            <span className="font-medium">{budget.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="tabular text-muted-foreground">
+                {formatCurrency(spent)} of {formatCurrency(budget.amount)}
+              </span>
+              <Badge variant={over ? "destructive" : "warning"}>
+                {pct.toFixed(0)}% used
+              </Badge>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ── Main ──────────────────────────────────────────────────────────────── */
 
 export function DashboardOverview() {
@@ -360,6 +415,8 @@ export function DashboardOverview() {
           hint={groupCount === 0 ? "None yet" : "Shared ledgers"}
         />
       </section>
+
+      <BudgetAlerts startDate={startDate} endDate={endDate} />
 
       {/* ── Charts ──────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">

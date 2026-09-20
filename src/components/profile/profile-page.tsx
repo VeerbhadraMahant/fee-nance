@@ -9,6 +9,7 @@ import {
   Moon,
   Pencil,
   Plus,
+  ShieldCheck,
   Sun,
   Tags,
   Trash2,
@@ -256,6 +257,86 @@ function EditProfileDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Data integrity check ─────────────────────────────────────────────── */
+
+interface DiagnosticsResult {
+  groupsChecked: number;
+  expensesChecked: number;
+  issues: Array<{ severity: "error" | "warning"; scope: string; message: string }>;
+  ok: boolean;
+}
+
+function DataIntegrityCard() {
+  const [result, setResult] = React.useState<DiagnosticsResult | null>(null);
+  const [running, setRunning] = React.useState(false);
+
+  const runCheck = async () => {
+    setRunning(true);
+    const response = await fetch("/api/private/diagnostics");
+    setRunning(false);
+
+    if (!response.ok) {
+      toast.error(await readApiError(response, "Couldn't run the data integrity check"));
+      return;
+    }
+
+    const data = (await response.json()) as DiagnosticsResult;
+    setResult(data);
+    toast[data.ok ? "success" : "error"](
+      data.ok
+        ? "All checks passed"
+        : `Found ${data.issues.length} issue${data.issues.length === 1 ? "" : "s"}`,
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="size-4" aria-hidden="true" />
+          Data integrity check
+        </CardTitle>
+        <CardDescription>
+          Verifies that every group expense&rsquo;s splits and payments sum to
+          its total, and that each group&rsquo;s net balance sums to zero.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        {result && (
+          <div
+            className={cn(
+              "rounded-lg border p-3 text-sm",
+              result.ok
+                ? "border-success/40 bg-success-subtle text-success"
+                : "border-destructive/40 bg-destructive-subtle text-destructive",
+            )}
+          >
+            <p className="font-medium">
+              {result.ok
+                ? `All checks passed — ${result.groupsChecked} group${result.groupsChecked === 1 ? "" : "s"}, ${result.expensesChecked} expense${result.expensesChecked === 1 ? "" : "s"}.`
+                : `${result.issues.length} issue${result.issues.length === 1 ? "" : "s"} found:`}
+            </p>
+            {result.issues.length > 0 && (
+              <ul className="mt-2 list-inside list-disc space-y-1">
+                {result.issues.map((issue, i) => (
+                  <li key={i}>
+                    <span className="font-medium">{issue.scope}:</span> {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="justify-end">
+        <Button variant="outline" loading={running} onClick={runCheck}>
+          Run check
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -522,6 +603,9 @@ export function ProfilePage({
           </form>
         </CardContent>
       </Card>
+
+      {/* ── Data integrity ──────────────────────────────────────────── */}
+      <DataIntegrityCard />
 
       {/* ── Danger zone ─────────────────────────────────────────────── */}
       <section className="space-y-4">
