@@ -446,3 +446,5 @@ See `docs/relational-mapping.md` for the column-by-column comparison and `docs/e
 - `docs/mongo-relational-equivalents.md`
 - `docs/viva-notes-mongodb-vs-relational.md`
 - `docs/dbms-report-output.json` — regenerate with `npm run dbms:report`
+
+## Made By : Ved Jadhav, Veerbhadra Mahant, Rehaan Shaikh
