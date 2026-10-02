@@ -228,7 +228,7 @@ Confirmed by the Phase 0 audit, not speculation:
 - **Missing endpoints.** Group expenses and settlements cannot be edited or deleted, and there is no member-removal or leave-group route.
 - **Categories hard-delete.** Transactions and budgets referencing a deleted category are left with a dangling `categoryId` and render as "Uncategorized".
 - **Invite codes use `Math.random()`**, not a cryptographic source.
-- **`403` on inaccessible group and category ids** allows id enumeration.
+
 
 ---
 
