@@ -1,4 +1,5 @@
 import { requireUserId } from "@/lib/api-auth";
+import { spendByBudget } from "@/lib/budget-spend";
 import { connectToDatabase } from "@/lib/db";
 import { parseDate, jsonError } from "@/lib/http";
 import { toObjectId } from "@/lib/object-id";
@@ -81,35 +82,18 @@ export async function GET(request: Request) {
       }).lean(),
     ]);
 
-    const budgets = await Promise.all(
-      budgetsRaw.map(async (budget) => {
-        const spendMatch: Record<string, unknown> = {
-          userId: userObjectId,
-          type: "expense",
-          transactionDate: { $gte: budget.periodStart, $lte: budget.periodEnd },
-        };
-        if (budget.categoryId) {
-          spendMatch.categoryId = budget.categoryId;
-        }
-
-        const [spendResult] = await Transaction.aggregate([
-          { $match: spendMatch },
-          { $group: { _id: null, total: { $sum: "$amount" } } },
-        ]);
-
-        const spent = spendResult?.total ?? 0;
-        const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
-
-        return {
-          _id: budget._id.toString(),
-          name: budget.name,
-          amount: budget.amount,
-          spent,
-          pct,
-          over: spent > budget.amount,
-        };
-      }),
-    );
+    const spent = await spendByBudget(userObjectId, budgetsRaw);
+    const budgets = budgetsRaw.map((budget) => {
+      const spend = spent.get(budget._id.toString()) ?? 0;
+      return {
+        _id: budget._id.toString(),
+        name: budget.name,
+        amount: budget.amount,
+        spent: spend,
+        pct: budget.amount > 0 ? (spend / budget.amount) * 100 : 0,
+        over: spend > budget.amount,
+      };
+    });
 
     const budgetAlerts = budgets.filter((b) => b.pct >= 80).sort((a, b) => b.pct - a.pct);
 

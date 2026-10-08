@@ -1,6 +1,7 @@
 /**
- * Checks the two pure money modules — itemized split allocation and the
- * cash-flow forecast — without touching the database.
+ * Checks the pure money modules — itemized split allocation, the cash-flow
+ * forecast, the tax regimes, the health score, goal projection and recurring
+ * detection — without touching the database.
  *
  * This is not a test suite. It is a standing check on the arithmetic that has
  * no other verification, run with `npm run verify:calc`. Backlog item T1
@@ -11,6 +12,10 @@
 import { buildForecast, standardDeviation } from "../lib/forecast";
 import { computeItemizedShares, computeShares } from "../lib/split";
 import { projectOccurrences } from "../lib/recurrence";
+import { compareRegimes, computeNewRegime, computeOldRegime, EMPTY_DEDUCTIONS } from "../lib/tax";
+import { computeHealthScore } from "../lib/health-score";
+import { projectGoal } from "../lib/goals";
+import { detectRecurring } from "../lib/recurring-detect";
 
 let failures = 0;
 
@@ -205,6 +210,129 @@ console.log("\nForecast");
 
   check("stdDev of a single sample is 0, not NaN", standardDeviation([5]) === 0);
   check("stdDev is computed", standardDeviation([10, 20, 30]) === 10);
+}
+
+console.log("\nTax — new regime slabs, rebate and marginal relief (FY 2026-27)");
+{
+  check("₹12.75L salary pays nothing (rebate up to ₹12L taxable)", computeNewRegime(1_275_000).netTax === 0);
+  const justOver = computeNewRegime(1_300_000);
+  check(
+    "₹13L: marginal relief caps tax at the excess over ₹12L, plus cess",
+    justOver.netTax === 26_000,
+    `got ${justOver.netTax}`,
+  );
+  const high = computeNewRegime(2_075_000);
+  check("₹20.75L: slab tax ₹2,00,000 + 4% cess", high.netTax === 208_000, `got ${high.netTax}`);
+  check(
+    "slab rows add up to the pre-rebate tax",
+    high.slabs.reduce((s, r) => s + r.tax, 0) === high.taxBeforeRebate,
+  );
+}
+
+console.log("\nTax — old regime and comparison");
+{
+  const old = computeOldRegime(1_000_000, { ...EMPTY_DEDUCTIONS, section80C: 150_000 });
+  check("₹10L with full 80C: ₹75,400", old.netTax === 75_400, `got ${old.netTax}`);
+  const capped = computeOldRegime(1_000_000, { ...EMPTY_DEDUCTIONS, section80C: 900_000 });
+  check("80C is capped at ₹1.5L", capped.netTax === old.netTax, `got ${capped.netTax}`);
+  check("₹5L taxable is fully rebated", computeOldRegime(550_000, EMPTY_DEDUCTIONS).netTax === 0);
+
+  const cmp = compareRegimes(1_500_000, EMPTY_DEDUCTIONS);
+  check("no deductions → new regime wins", cmp.recommended === "new");
+  check("break-even is positive when new regime wins", cmp.breakEvenExtraDeductions > 0);
+  const atBreakEven = computeOldRegime(1_500_000, {
+    ...EMPTY_DEDUCTIONS,
+    other: cmp.breakEvenExtraDeductions,
+  });
+  check(
+    "claiming the break-even amount matches the new regime",
+    atBreakEven.netTax <= cmp.newRegime.netTax,
+    `old ${atBreakEven.netTax} vs new ${cmp.newRegime.netTax}`,
+  );
+}
+
+console.log("\nHealth score");
+{
+  const healthy = computeHealthScore({
+    monthlyNets: [20_000, 18_000, 22_000, 19_000, 21_000, 20_000],
+    monthlyExpenses: [60_000, 62_000, 58_000, 61_000, 59_000, 60_000],
+    trailingIncome: 240_000,
+    trailingExpense: 180_000,
+    balance: 400_000,
+    budgetUtilisation: [0.6, 0.75],
+  });
+  check("healthy ledger scores strong", healthy.band === "strong", `got ${healthy.overall}`);
+  check("weights sum to 1", Math.abs(healthy.subScores.reduce((s, p) => s + p.weight, 0) - 1) < 1e-9);
+
+  const empty = computeHealthScore({
+    monthlyNets: [],
+    monthlyExpenses: [],
+    trailingIncome: 0,
+    trailingExpense: 0,
+    balance: 0,
+    budgetUtilisation: [],
+  });
+  check("empty ledger is neutral, not zero", empty.overall === 70, `got ${empty.overall}`);
+  check("empty ledger marks nothing as measured", empty.subScores.every((p) => !p.measured));
+
+  const overBudget = computeHealthScore({
+    monthlyNets: [-5_000, -2_000],
+    monthlyExpenses: [50_000, 52_000],
+    trailingIncome: 95_000,
+    trailingExpense: 102_000,
+    balance: 1_000,
+    budgetUtilisation: [1.4],
+  });
+  check("overspending ledger is at risk", overBudget.band === "at-risk", `got ${overBudget.overall}`);
+}
+
+console.log("\nGoal projection");
+{
+  const today = new Date(2026, 0, 15);
+  const p = projectGoal({ targetAmount: 100_000, savedAmount: 40_000, targetDate: new Date(2026, 6, 15) }, 10_000, today);
+  check("6 months to go at ₹10k/month", p.monthsToGo === 6, `got ${p.monthsToGo}`);
+  check("on track for a date 6 months out", p.onTrack);
+  check("required monthly is ₹10,000", p.requiredMonthly === 10_000, `got ${p.requiredMonthly}`);
+
+  const stalled = projectGoal({ targetAmount: 100_000, savedAmount: 0 }, 0, today);
+  check("no contribution → never finishes", stalled.monthsToGo === null && !stalled.onTrack);
+  check("met goal is complete", projectGoal({ targetAmount: 10, savedAmount: 10 }, 0, today).complete);
+}
+
+console.log("\nRecurring detection");
+{
+  const day = (d: number) => new Date(2026, 0, 1 + d);
+  const charge = (id: string, title: string, amount: number, d: number) => ({
+    id,
+    title,
+    amount,
+    date: day(d),
+    categoryName: "Subscriptions",
+  });
+  const found = detectRecurring([
+    charge("1", "NETFLIX 4482", 649, 0),
+    charge("2", "Netflix 9911", 649, 31),
+    charge("3", "netflix", 649, 59),
+    charge("4", "Netflix", 649, 90),
+    charge("5", "Spotify", 119, 3),
+    charge("6", "Spotify", 119, 34),
+    charge("7", "Spotify", 119, 62),
+    charge("8", "Hotstar", 299, 5),
+    charge("9", "Hotstar", 299, 36),
+    charge("10", "Hotstar", 299, 64),
+    charge("11", "Cafe", 180, 1),
+    charge("12", "Cafe", 640, 4),
+    charge("13", "Cafe", 90, 19),
+  ]);
+  const netflix = found.find((f) => f.key === "netflix");
+  check("reference numbers are normalised away", Boolean(netflix) && netflix!.occurrences === 4);
+  check("classified as monthly", netflix?.frequency === "monthly");
+  check("irregular payee is not flagged", !found.some((f) => f.key === "cafe"));
+  check("two video services flagged as overlapping", netflix?.overlapGroup === "Video streaming");
+  check(
+    "a lone music service is not flagged",
+    found.find((f) => f.key === "spotify")?.overlapGroup === null,
+  );
 }
 
 console.log(
