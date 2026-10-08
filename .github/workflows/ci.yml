@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, typecheck, verify and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Pure money logic: splits, forecast, tax, health score, goals, recurring detection.
+      - name: Calculation checks
+        run: npm run verify:calc
+
+      # Applies supabase/migrations to an embedded Postgres (PGlite) and checks
+      # row-level security, every SQL function and the group invariants.
+      # Needs no Supabase project or secrets.
+      - name: Database checks
+        run: npm run verify:db
+
+      # Deliberately built without Supabase env vars: the build must never
+      # depend on runtime secrets (they're read lazily at request time).
+      - name: Production build
+        run: npm run build
