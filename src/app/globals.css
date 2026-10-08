@@ -372,6 +372,16 @@
 .stagger > *:nth-child(5) { animation-delay: 160ms; }
 .stagger > *:nth-child(n + 6) { animation-delay: 200ms; }
 
+/* Indeterminate progress hairline (see FetchProgress in app-shell). */
+@keyframes progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -423,4 +433,44 @@
 .recharts-bar-rectangle:focus,
 .recharts-dot:focus {
   outline: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRINT
+   The monthly report is meant to be saved as PDF. Strip app chrome, force
+   ink-on-paper colours regardless of theme, and keep cards whole across
+   page breaks.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  :root,
+  .dark {
+    --background: #ffffff;
+    --foreground: #070607;
+    --card: #ffffff;
+    --card-foreground: #070607;
+    --muted: #f1f0ed;
+    --muted-foreground: #4a4846;
+    --border: #d8d7d3;
+  }
+
+  body {
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  [data-slot="card"] {
+    break-inside: avoid;
+    border: 1px solid var(--border);
+  }
+
+  [data-sonner-toaster] {
+    display: none !important;
+  }
 }

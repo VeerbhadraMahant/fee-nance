@@ -47,10 +47,15 @@ export function addMonths(from: Date, months: number) {
   return date;
 }
 
-/** Whole months from `from` to `to`, counting a part month as a full one. */
+/**
+ * Full months between `from` and `to`. A part month doesn't count: saving
+ * monthly from 8 Oct, the 8 May contribution is the last one before 1 Jun.
+ * Rounding up here made "required monthly" land a few days after the date
+ * it was meant to hit.
+ */
 export function monthsBetween(from: Date, to: Date) {
   let months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
-  if (to.getDate() > from.getDate()) months += 1;
+  if (to.getDate() < from.getDate()) months -= 1;
   return Math.max(0, months);
 }
 

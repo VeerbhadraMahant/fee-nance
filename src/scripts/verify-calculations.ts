@@ -294,6 +294,19 @@ console.log("\nGoal projection");
   check("on track for a date 6 months out", p.onTrack);
   check("required monthly is ₹10,000", p.requiredMonthly === 10_000, `got ${p.requiredMonthly}`);
 
+  const awkward = projectGoal(
+    { targetAmount: 260_000, savedAmount: 42_000, targetDate: new Date(2026, 5, 1) },
+    0,
+    new Date(2025, 9, 8),
+  );
+  const atRequired = projectGoal(
+    { targetAmount: 260_000, savedAmount: 42_000, targetDate: new Date(2026, 5, 1) },
+    awkward.requiredMonthly!,
+    new Date(2025, 9, 8),
+  );
+  check("paying the required monthly lands on time, even mid-month", atRequired.onTrack,
+    `required ${awkward.requiredMonthly}, done ${atRequired.projectedDate?.toDateString()}`);
+
   const stalled = projectGoal({ targetAmount: 100_000, savedAmount: 0 }, 0, today);
   check("no contribution → never finishes", stalled.monthsToGo === null && !stalled.onTrack);
   check("met goal is complete", projectGoal({ targetAmount: 10, savedAmount: 10 }, 0, today).complete);

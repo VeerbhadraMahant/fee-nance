@@ -46,7 +46,7 @@ export async function completedMonthTotals(
       },
     ]),
     Transaction.aggregate<{ _id: "income" | "expense"; total: number }>([
-      { $match: { userId, transactionDate: { $lte: now } } },
+      { $match: { userId, transactionDate: { $lt: now } } },
       { $group: { _id: "$type", total: { $sum: "$amount" } } },
     ]),
   ]);

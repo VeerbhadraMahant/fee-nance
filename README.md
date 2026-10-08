@@ -89,6 +89,21 @@ All four compare sums with exact equality *after* rounding to 2 dp, not with an 
 All four are MongoDB `$setWindowFields` pipelines and are documented, with the
 index each one rides, in `docs/insights-pipelines.md`. **Requires MongoDB 5.0+.**
 
+### Planning (ported from HackMatrix / FinPilot)
+- **Financial health score** (dashboard and monthly report): five weighted
+  pillars computed from the ledger in `lib/health-score.ts`. FinPilot's debt
+  pillar is replaced by budget adherence, since Fee-Nance records no loans.
+- **Savings goals** (`/goals`): targets, contributions, required monthly
+  amount for a target date, and a what-if slider per goal. Projections are
+  set against the user's real average monthly surplus.
+- **Tax planner** (`/tax`): new vs old regime for FY 2026-27 with 87A rebate
+  and marginal relief, deductions pre-filled from transaction titles, and the
+  old-regime break-even. Surcharge and senior-citizen limits are not modelled.
+- **Monthly report** (`/report`): a one-page statement with a print/PDF stylesheet.
+- **Unruled recurring charges** (Insights): repeating payees with no recurring
+  rule, plus overlapping subscriptions (two video services, etc.).
+- **Command palette**: `⌘K` / `Ctrl+K` to jump to any page or start an action.
+
 ### Group expenses
 - Create a group (you become owner) or join one with an 8-character invite code
 - Multi-payer expenses: several people can have paid toward one bill

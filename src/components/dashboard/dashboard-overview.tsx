@@ -19,6 +19,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   ChartPie,
+  Goal as GoalIcon,
   MoreHorizontal,
   PiggyBank,
   RefreshCw,
@@ -36,6 +37,7 @@ import {
   type DateRange,
 } from "@/components/shared/date-range-filter";
 import { StatCard } from "@/components/shared/stat-card";
+import { HealthScoreCard } from "@/components/health/health-score-card";
 import { SectionHeader } from "@/components/layout/page-header";
 import {
   ChartFrame,
@@ -411,6 +413,9 @@ export function DashboardOverview() {
 
       <BudgetAlerts alerts={budgetAlerts} />
 
+      {/* Not tied to the date range: the score always reads the latest full months. */}
+      <HealthScoreCard />
+
       {/* ── Charts ──────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -444,7 +449,7 @@ export function DashboardOverview() {
       {/* ── Next steps ──────────────────────────────────────────────── */}
       <section className="space-y-3">
         <SectionHeader title="Keep going" />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Card interactive className="group">
             <Link
               href="/analytics"
@@ -463,6 +468,29 @@ export function DashboardOverview() {
                 </span>
                 <span className="mt-0.5 block text-sm text-muted-foreground">
                   Category trends, savings trajectory and month-on-month comparisons.
+                </span>
+              </span>
+            </Link>
+          </Card>
+
+          <Card interactive className="group">
+            <Link
+              href="/goals"
+              className="flex items-start gap-4 p-5 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
+              >
+                <GoalIcon className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1 font-medium">
+                  Savings goals
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                </span>
+                <span className="mt-0.5 block text-sm text-muted-foreground">
+                  Set a target and see when your real monthly surplus gets you there.
                 </span>
               </span>
             </Link>
