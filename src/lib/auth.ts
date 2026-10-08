@@ -80,7 +80,14 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: env.NEXTAUTH_SECRET,
+  // A getter, so the secret is read when NextAuth handles a request rather
+  // than when this module is imported. `next build` imports every route to
+  // collect page data; reading it eagerly made builds without runtime
+  // secrets (CI, preview pipelines) fail. A missing secret still throws, on
+  // the first auth request.
+  get secret() {
+    return env.NEXTAUTH_SECRET;
+  },
   session: {
     strategy: "jwt",
     maxAge: 60 * 60 * 24 * 7,
