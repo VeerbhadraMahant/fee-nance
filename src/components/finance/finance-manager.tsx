@@ -5,6 +5,7 @@ import { ArrowDownLeft, ArrowUpRight, Download, Plus, Wallet } from "lucide-reac
 
 import { useQuery, readApiError } from "@/lib/use-query";
 import { downloadCsv } from "@/lib/csv";
+import { useCreateIntent } from "@/lib/use-create-intent";
 import { toQueryRange, defaultRange, DateRangeFilter, type DateRange } from "@/components/shared/date-range-filter";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,11 @@ export function FinanceManager() {
   }>({ open: false, category: null });
 
   const { confirm, confirmDialog } = useConfirm();
+
+  useCreateIntent("transaction", () => {
+    setTab("transactions");
+    setTxnDialog({ open: true, transaction: null });
+  });
 
   const { startDate, endDate } = toQueryRange(range);
   const { data, isLoading, error, reload } = useQuery<FinancePayload>(

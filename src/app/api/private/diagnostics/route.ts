@@ -1,11 +1,7 @@
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { requireUser } from "@/lib/api-auth";
+import { loadGroupExpenses } from "@/lib/data/groups";
 import { approxEqual, roundCurrency } from "@/lib/money";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Group } from "@/models/Group";
-import { GroupExpense } from "@/models/GroupExpense";
+import { handleRouteError, must } from "@/lib/route";
 
 interface Issue {
   severity: "error" | "warning";
@@ -22,29 +18,21 @@ interface Issue {
  */
 export async function GET() {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
+    const { supabase } = await requireUser();
 
-    const groups = await Group.find({ "members.userId": toObjectId(userId) })
-      .select("_id name")
-      .lean();
+    const groups = must(await supabase.from("groups").select("id, name")) as Array<{
+      id: string;
+      name: string;
+    }>;
+    const expenses = await loadGroupExpenses(supabase, groups.map((g) => g.id));
 
     const issues: Issue[] = [];
-    let expensesChecked = 0;
-    let groupsChecked = 0;
 
     for (const group of groups) {
-      groupsChecked += 1;
-      const expenses = await GroupExpense.find({ groupId: group._id }).lean();
-
       const netByMember = new Map<string, number>();
 
-      for (const expense of expenses) {
-        expensesChecked += 1;
-
-        const splitTotal = roundCurrency(
-          expense.splits.reduce((sum: number, s: { shareAmount: number }) => sum + s.shareAmount, 0),
-        );
+      for (const expense of expenses.filter((e) => e.groupId === group.id)) {
+        const splitTotal = roundCurrency(expense.splits.reduce((sum, s) => sum + s.shareAmount, 0));
         if (!approxEqual(splitTotal, expense.amount)) {
           issues.push({
             severity: "error",
@@ -53,9 +41,7 @@ export async function GET() {
           });
         }
 
-        const paidTotal = roundCurrency(
-          expense.paidBy.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0),
-        );
+        const paidTotal = roundCurrency(expense.paidBy.reduce((sum, p) => sum + p.amount, 0));
         if (!approxEqual(paidTotal, expense.amount)) {
           issues.push({
             severity: "error",
@@ -64,19 +50,15 @@ export async function GET() {
           });
         }
 
-        for (const split of expense.splits as Array<{ userId: { toString(): string }; shareAmount: number }>) {
-          const id = split.userId.toString();
-          netByMember.set(id, roundCurrency((netByMember.get(id) ?? 0) - split.shareAmount));
+        for (const split of expense.splits) {
+          netByMember.set(split.userId, roundCurrency((netByMember.get(split.userId) ?? 0) - split.shareAmount));
         }
-        for (const payer of expense.paidBy as Array<{ userId: { toString(): string }; amount: number }>) {
-          const id = payer.userId.toString();
-          netByMember.set(id, roundCurrency((netByMember.get(id) ?? 0) + payer.amount));
+        for (const payer of expense.paidBy) {
+          netByMember.set(payer.userId, roundCurrency((netByMember.get(payer.userId) ?? 0) + payer.amount));
         }
       }
 
-      const groupNet = roundCurrency(
-        Array.from(netByMember.values()).reduce((sum, v) => sum + v, 0),
-      );
+      const groupNet = roundCurrency([...netByMember.values()].reduce((sum, v) => sum + v, 0));
       if (!approxEqual(groupNet, 0)) {
         issues.push({
           severity: "error",
@@ -87,17 +69,12 @@ export async function GET() {
     }
 
     return Response.json({
-      groupsChecked,
-      expensesChecked,
+      groupsChecked: groups.length,
+      expensesChecked: expenses.length,
       issues,
       ok: issues.length === 0,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to run diagnostics", 500);
+    return handleRouteError(error, "Failed to run diagnostics");
   }
 }

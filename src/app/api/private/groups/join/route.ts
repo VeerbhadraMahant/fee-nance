@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { getGroupMemberIds } from "@/lib/group-members";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { loadGroup, memberIdsOf } from "@/lib/data/groups";
 import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Group } from "@/models/Group";
+import { handleRouteError, must } from "@/lib/route";
 
 const joinGroupSchema = z.object({
   inviteCode: z.string().trim().min(4).max(20),
@@ -13,60 +12,18 @@ const joinGroupSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase } = await requireUser();
     const payload = joinGroupSchema.parse(await request.json());
 
-    await connectToDatabase();
+    // Idempotent: joining a group you're already in just returns it.
+    const groupId = must(await supabase.rpc("join_group", { p_invite_code: payload.inviteCode })) as string;
+    const group = await loadGroup(supabase, groupId);
+    if (!group) return jsonError("Group not found", 404);
 
-    const group = await Group.findOne({
-      inviteCode: payload.inviteCode.toUpperCase(),
-    }).lean();
-
-    if (!group) {
-      return jsonError("Invalid invite code", 404);
-    }
-
-    const memberIds = getGroupMemberIds(group);
-    const userObjectId = toObjectId(userId);
-    const alreadyMember = memberIds.includes(userId);
-
-    if (alreadyMember) {
-      return Response.json({ group });
-    }
-
-    await Group.updateOne(
-      {
-        _id: group._id,
-        "members.userId": { $ne: userObjectId },
-      },
-      {
-        $push: {
-          members: {
-            userId: userObjectId,
-            role: "member",
-            joinedAt: new Date(),
-          },
-        },
-      },
-    );
-
-    const updatedGroup = await Group.findById(group._id).lean();
-
-    if (!updatedGroup) {
-      return jsonError("Group not found", 404);
-    }
-
-    return Response.json({ group: updatedGroup });
+    // Everyone's balances view now includes a new member.
+    await invalidateUsers(memberIdsOf(group));
+    return Response.json({ group });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid invite code", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to join group", 500);
+    return handleRouteError(error, "Failed to join group");
   }
 }

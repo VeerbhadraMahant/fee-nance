@@ -17,7 +17,7 @@
 
 import { z } from "zod";
 
-import { requireUserId } from "@/lib/api-auth";
+import { requireUser } from "@/lib/api-auth";
 import { jsonError } from "@/lib/http";
 import { logger } from "@/lib/logger";
 import {
@@ -37,7 +37,7 @@ const extractRequestSchema = z.object({
 /** Lets the dialog decide whether to offer a "Scan a bill" button at all. */
 export async function GET() {
   try {
-    await requireUserId();
+    await requireUser();
     return Response.json({ configured: isExtractorConfigured() });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
@@ -51,7 +51,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireUserId();
+    await requireUser();
 
     const payload = extractRequestSchema.parse(await request.json());
     const extractor = getReceiptExtractor();

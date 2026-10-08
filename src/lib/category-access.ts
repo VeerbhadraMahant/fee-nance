@@ -1,24 +1,22 @@
-import { toObjectId } from "@/lib/object-id";
-import { Category } from "@/models/Category";
+import { HttpError, isUuid, must } from "@/lib/route";
+import type { SupabaseServerClient } from "@/lib/supabase/server";
 
-export async function resolveAccessibleCategoryId(categoryId: string | null | undefined, userId: string) {
-  if (!categoryId) {
-    return undefined;
-  }
+/**
+ * Confirms the caller may file a transaction or budget under this category
+ * (a system category or one of their own) and returns its id. Row-level
+ * security hides everyone else's categories, so "not visible" and "doesn't
+ * exist" are the same answer.
+ */
+export async function resolveAccessibleCategoryId(
+  supabase: SupabaseServerClient,
+  categoryId: string | null | undefined,
+) {
+  if (!categoryId) return null;
+  if (!isUuid(categoryId)) throw new HttpError(422, "Category not found");
 
-  const categoryObjectId = toObjectId(categoryId);
-  const userObjectId = toObjectId(userId);
-
-  const category = await Category.findOne({
-    _id: categoryObjectId,
-    $or: [{ isSystem: true }, { userId: userObjectId }],
-  })
-    .select("_id")
-    .lean();
-
-  if (!category) {
-    throw new Error("Category not found");
-  }
-
-  return categoryObjectId;
+  const row = must(
+    await supabase.from("categories").select("id").eq("id", categoryId).maybeSingle(),
+  );
+  if (!row) throw new HttpError(422, "Category not found");
+  return row.id as string;
 }

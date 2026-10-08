@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
-import { connectToDatabase } from "@/lib/db";
-import { parseDate, jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Budget } from "@/models/Budget";
+import { toBudget, type BudgetRow } from "@/lib/data/mappers";
+import { jsonError, parseDate } from "@/lib/http";
+import { handleRouteError, must } from "@/lib/route";
 
 const budgetSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -18,81 +18,53 @@ const budgetSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
-
+    const { supabase } = await requireUser();
     const { searchParams } = new URL(request.url);
     const startDate = parseDate(searchParams.get("startDate"));
     const endDate = parseDate(searchParams.get("endDate"));
 
-    const query: {
-      userId: ReturnType<typeof toObjectId>;
-      periodStart?: { $lte: Date };
-      periodEnd?: { $gte: Date };
-    } = {
-      userId: toObjectId(userId),
-    };
+    // A budget is relevant to the window if its period overlaps it at all.
+    let query = supabase.from("budgets").select("*").order("period_start", { ascending: false });
+    if (endDate) query = query.lte("period_start", endDate.toISOString());
+    if (startDate) query = query.gte("period_end", startDate.toISOString());
 
-    // A budget is relevant to the selected window if its period overlaps it
-    // at all — not just when it happens to start inside the window.
-    if (endDate) {
-      query.periodStart = { $lte: endDate };
-    }
-    if (startDate) {
-      query.periodEnd = { $gte: startDate };
-    }
-
-    const budgets = await Budget.find(query).sort({ periodStart: -1 }).lean();
-
-    return Response.json({ budgets });
+    const rows = must(await query) as BudgetRow[];
+    return Response.json({ budgets: rows.map(toBudget) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load budgets", 500);
+    return handleRouteError(error, "Failed to load budgets");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = budgetSchema.parse(await request.json());
 
-    const periodStart = new Date(payload.periodStart);
-    const periodEnd = new Date(payload.periodEnd);
-
-    if (periodEnd <= periodStart) {
+    if (new Date(payload.periodEnd) <= new Date(payload.periodStart)) {
       return jsonError("Budget period end must be after period start", 422);
     }
 
-    await connectToDatabase();
+    const categoryId = await resolveAccessibleCategoryId(supabase, payload.categoryId);
 
-    const categoryId = await resolveAccessibleCategoryId(payload.categoryId, userId);
+    const row = must(
+      await supabase
+        .from("budgets")
+        .insert({
+          user_id: userId,
+          name: payload.name,
+          amount: payload.amount,
+          cycle: payload.cycle,
+          category_id: categoryId,
+          period_start: payload.periodStart,
+          period_end: payload.periodEnd,
+        })
+        .select()
+        .single(),
+    ) as BudgetRow;
 
-    const budget = await Budget.create({
-      userId: toObjectId(userId),
-      name: payload.name,
-      amount: payload.amount,
-      currency: "INR",
-      cycle: payload.cycle,
-      categoryId,
-      periodStart,
-      periodEnd,
-    });
-
-    return Response.json({ budget }, { status: 201 });
+    await invalidateUsers([userId]);
+    return Response.json({ budget: toBudget(row) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid budget input", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to create budget", 500);
+    return handleRouteError(error, "Failed to create budget");
   }
 }

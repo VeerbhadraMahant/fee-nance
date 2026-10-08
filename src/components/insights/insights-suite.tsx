@@ -34,6 +34,7 @@ import {
   type DateRange,
 } from "@/components/shared/date-range-filter";
 import { StatCard } from "@/components/shared/stat-card";
+import { RecurringCard } from "./recurring-card";
 import {
   ChartFrame,
   ChartLegend,
@@ -490,6 +491,8 @@ export function InsightsSuite() {
           />
         </CardContent>
       </Card>
+
+      <RecurringCard />
 
       <Card>
         <CardHeader>

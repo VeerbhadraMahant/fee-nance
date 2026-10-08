@@ -1,13 +1,8 @@
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { getGroupMemberIds } from "@/lib/group-members";
+import { requireUser } from "@/lib/api-auth";
+import { loadGroup, loadGroupExpenses, loadSettlements, memberIdsOf } from "@/lib/data/groups";
 import { jsonError } from "@/lib/http";
 import { roundCurrency } from "@/lib/money";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Group } from "@/models/Group";
-import { GroupExpense } from "@/models/GroupExpense";
-import { Settlement } from "@/models/Settlement";
+import { handleRouteError } from "@/lib/route";
 
 function simplifyPairwise(balanceMap: Map<string, number>) {
   const creditors = Array.from(balanceMap.entries())
@@ -56,47 +51,33 @@ export async function GET(
   { params }: { params: Promise<{ groupId: string }> },
 ) {
   try {
-    const userId = await requireUserId();
+    const { supabase } = await requireUser();
     const { groupId } = await params;
 
-    await connectToDatabase();
+    const group = await loadGroup(supabase, groupId);
+    if (!group) return jsonError("Group not found", 404);
 
-    const group = await Group.findById(toObjectId(groupId)).lean();
+    const memberIds = memberIdsOf(group);
+    const balances = new Map<string, number>(memberIds.map((id) => [id, 0]));
 
-    if (!group) {
-      return jsonError("Group not found", 404);
-    }
-
-    const memberIds = getGroupMemberIds(group);
-
-    if (!memberIds.includes(userId)) {
-      return jsonError("Forbidden", 403);
-    }
-
-    const balances = new Map<string, number>(memberIds.map((id: string) => [id, 0]));
-
-    const expenses = await GroupExpense.find({ groupId: toObjectId(groupId) }).lean();
+    const [expenses, settlements] = await Promise.all([
+      loadGroupExpenses(supabase, [groupId]),
+      loadSettlements(supabase, [groupId]),
+    ]);
 
     for (const expense of expenses) {
       for (const split of expense.splits) {
-        const splitUserId = split.userId.toString();
-        balances.set(splitUserId, roundCurrency((balances.get(splitUserId) ?? 0) - split.shareAmount));
+        balances.set(split.userId, roundCurrency((balances.get(split.userId) ?? 0) - split.shareAmount));
       }
-
       for (const payer of expense.paidBy) {
-        const payerId = payer.userId.toString();
-        balances.set(payerId, roundCurrency((balances.get(payerId) ?? 0) + payer.amount));
+        balances.set(payer.userId, roundCurrency((balances.get(payer.userId) ?? 0) + payer.amount));
       }
     }
 
-    const settlements = await Settlement.find({ groupId: toObjectId(groupId) }).lean();
-
     for (const settlement of settlements) {
-      const fromUserId = settlement.fromUserId.toString();
-      const toUserId = settlement.toUserId.toString();
-
-      balances.set(fromUserId, roundCurrency((balances.get(fromUserId) ?? 0) + settlement.amount));
-      balances.set(toUserId, roundCurrency((balances.get(toUserId) ?? 0) - settlement.amount));
+      const { fromUserId, toUserId, amount } = settlement;
+      balances.set(fromUserId, roundCurrency((balances.get(fromUserId) ?? 0) + amount));
+      balances.set(toUserId, roundCurrency((balances.get(toUserId) ?? 0) - amount));
     }
 
     return Response.json({
@@ -107,15 +88,6 @@ export async function GET(
       pairwiseSettlements: simplifyPairwise(balances),
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof Error && error.message === "Invalid identifier") {
-      return jsonError("Invalid identifier", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to calculate balances", 500);
+    return handleRouteError(error, "Failed to calculate balances");
   }
 }

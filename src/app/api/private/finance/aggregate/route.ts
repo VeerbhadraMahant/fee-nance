@@ -1,80 +1,56 @@
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { ensureDefaultCategories } from "@/lib/default-categories";
-import { parseDate, jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Budget } from "@/models/Budget";
-import { Category } from "@/models/Category";
-import { Transaction } from "@/models/Transaction";
+import { requireUser } from "@/lib/api-auth";
+import {
+  toBudget,
+  toCategory,
+  toTransaction,
+  type BudgetRow,
+  type CategoryRow,
+  type TransactionRow,
+} from "@/lib/data/mappers";
+import { parseDate } from "@/lib/http";
+import { handleRouteError, must, selectAll } from "@/lib/route";
 
+/** Everything the Transactions page needs, in one round trip from the browser. */
 export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
-    await ensureDefaultCategories();
-
-    const userObjectId = toObjectId(userId);
+    const { supabase } = await requireUser();
     const { searchParams } = new URL(request.url);
-
     const startDate = parseDate(searchParams.get("startDate"));
     const endDate = parseDate(searchParams.get("endDate"));
 
-    const transactionQuery: {
-      userId: ReturnType<typeof toObjectId>;
-      transactionDate?: { $gte?: Date; $lte?: Date };
-    } = {
-      userId: userObjectId,
-    };
+    const transactions = selectAll<TransactionRow>((from, to) => {
+      let query = supabase
+        .from("transactions")
+        .select("*")
+        .order("transaction_date", { ascending: false })
+        .order("id");
+      if (startDate) query = query.gte("transaction_date", startDate.toISOString());
+      if (endDate) query = query.lte("transaction_date", endDate.toISOString());
+      return query.range(from, to);
+    });
 
-    if (startDate || endDate) {
-      transactionQuery.transactionDate = {};
-      if (startDate) {
-        transactionQuery.transactionDate.$gte = startDate;
-      }
-      if (endDate) {
-        transactionQuery.transactionDate.$lte = endDate;
-      }
-    }
+    // A budget is relevant to the window if its period overlaps it at all.
+    let budgets = supabase.from("budgets").select("*").order("period_start", { ascending: false });
+    if (endDate) budgets = budgets.lte("period_start", endDate.toISOString());
+    if (startDate) budgets = budgets.gte("period_end", startDate.toISOString());
 
-    const budgetQuery: {
-      userId: ReturnType<typeof toObjectId>;
-      periodStart?: { $lte: Date };
-      periodEnd?: { $gte: Date };
-    } = {
-      userId: userObjectId,
-    };
-
-    // A budget is relevant to the selected window if its period overlaps it
-    // at all — not just when it happens to start inside the window.
-    if (endDate) {
-      budgetQuery.periodStart = { $lte: endDate };
-    }
-    if (startDate) {
-      budgetQuery.periodEnd = { $gte: startDate };
-    }
-
-    const [categories, transactions, budgets] = await Promise.all([
-      Category.find({
-        $or: [{ isSystem: true }, { userId: userObjectId }],
-      })
-        .sort({ isSystem: -1, name: 1 })
-        .lean(),
-      Transaction.find(transactionQuery).sort({ transactionDate: -1 }).lean(),
-      Budget.find(budgetQuery).sort({ periodStart: -1 }).lean(),
+    const [categoryRows, transactionRows, budgetRows] = await Promise.all([
+      supabase
+        .from("categories")
+        .select("*")
+        .order("is_system", { ascending: false })
+        .order("name", { ascending: true })
+        .then(must),
+      transactions,
+      budgets.then(must),
     ]);
 
     return Response.json({
-      categories,
-      transactions,
-      budgets,
+      categories: (categoryRows as CategoryRow[]).map(toCategory),
+      transactions: (transactionRows as TransactionRow[]).map(toTransaction),
+      budgets: (budgetRows as BudgetRow[]).map(toBudget),
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load finance workspace", 500);
+    return handleRouteError(error, "Failed to load finance workspace");
   }
 }

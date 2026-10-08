@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { ArrowRight, Check, Copy, LogOut, Plus, Trash2, UserPlus, Users } from "lucide-react";
 
 import { readApiError, useQuery } from "@/lib/use-query";
 import { initials } from "@/lib/format";
+import { useCurrentUser } from "@/components/providers/current-user";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -298,12 +298,12 @@ export function GroupManager() {
   const [joinOpen, setJoinOpen] = React.useState(false);
   const { data, isLoading, error, reload } =
     useQuery<{ groups: Group[] }>("/api/private/groups");
-  const { data: session } = useSession();
+  const currentUser = useCurrentUser();
   const { confirm, confirmDialog } = useConfirm();
 
   const handleDelete = async (group: Group) => {
     const isOwner = group.members.some(
-      (m) => m.userId._id === session?.user?.id && m.role === "owner",
+      (m) => m.userId._id === currentUser?.id && m.role === "owner",
     );
 
     const ok = await confirm({
@@ -373,7 +373,7 @@ export function GroupManager() {
         <ul className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {data.groups.map((group) => {
             const isOwner = group.members.some(
-              (m) => m.userId._id === session?.user?.id && m.role === "owner",
+              (m) => m.userId._id === currentUser?.id && m.role === "owner",
             );
 
             return (

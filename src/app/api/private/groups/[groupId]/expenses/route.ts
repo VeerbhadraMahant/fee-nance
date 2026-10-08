@@ -1,13 +1,14 @@
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { getGroupMemberIds } from "@/lib/group-members";
-import { computeShares, validatePayers } from "@/lib/split";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { loadGroup, memberIdsOf } from "@/lib/data/groups";
+import { GROUP_EXPENSE_SELECT, toGroupExpense, type GroupExpenseRow } from "@/lib/data/mappers";
 import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Group } from "@/models/Group";
-import { GroupExpense } from "@/models/GroupExpense";
+import { handleRouteError, HttpError, must, optionalParam } from "@/lib/route";
+import { computeShares, validatePayers } from "@/lib/split";
 
 const createExpenseSchema = z
   .object({
@@ -59,90 +60,58 @@ const expenseQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 
-function getOptionalParam(value: string | null) {
-  if (value === null || value.trim() === "") {
-    return undefined;
-  }
+const SORT_COLUMNS = {
+  incurredAt: "incurred_at",
+  amount: "amount",
+  createdAt: "created_at",
+} as const;
 
-  return value;
-}
+type Params = { params: Promise<{ groupId: string }> };
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
-) {
+export async function GET(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase } = await requireUser();
     const { groupId } = await params;
 
-    await connectToDatabase();
-
-    const group = await Group.findById(toObjectId(groupId)).lean();
-
-    if (!group) {
-      return jsonError("Group not found", 404);
-    }
-
-    const memberIds = getGroupMemberIds(group);
-
-    if (!memberIds.includes(userId)) {
-      return jsonError("Forbidden", 403);
-    }
+    const group = await loadGroup(supabase, groupId);
+    if (!group) return jsonError("Group not found", 404);
+    const memberIds = memberIdsOf(group);
 
     const { searchParams } = new URL(request.url);
-    const queryParams = expenseQuerySchema.parse({
-      startDate: getOptionalParam(searchParams.get("startDate")),
-      endDate: getOptionalParam(searchParams.get("endDate")),
-      createdBy: getOptionalParam(searchParams.get("createdBy")),
-      page: getOptionalParam(searchParams.get("page")),
-      limit: getOptionalParam(searchParams.get("limit")),
-      sortBy: getOptionalParam(searchParams.get("sortBy")),
-      sortOrder: getOptionalParam(searchParams.get("sortOrder")),
+    const q = expenseQuerySchema.parse({
+      startDate: optionalParam(searchParams.get("startDate")),
+      endDate: optionalParam(searchParams.get("endDate")),
+      createdBy: optionalParam(searchParams.get("createdBy")),
+      page: optionalParam(searchParams.get("page")),
+      limit: optionalParam(searchParams.get("limit")),
+      sortBy: optionalParam(searchParams.get("sortBy")),
+      sortOrder: optionalParam(searchParams.get("sortOrder")),
     });
 
-    if (queryParams.createdBy && !memberIds.includes(queryParams.createdBy)) {
+    if (q.createdBy && !memberIds.includes(q.createdBy)) {
       return jsonError("createdBy filter must be a group member", 422);
     }
 
-    const shouldPaginate = queryParams.page !== undefined || queryParams.limit !== undefined;
-    const page = queryParams.page ?? 1;
-    const limit = queryParams.limit ?? 20;
-    const sortField = queryParams.sortBy ?? "incurredAt";
-    const sortDirection = queryParams.sortOrder === "asc" ? 1 : -1;
+    const shouldPaginate = q.page !== undefined || q.limit !== undefined;
+    const page = q.page ?? 1;
+    const limit = q.limit ?? 20;
 
-    const historyQuery: {
-      groupId: ReturnType<typeof toObjectId>;
-      incurredAt?: { $gte?: Date; $lte?: Date };
-      createdBy?: ReturnType<typeof toObjectId>;
-    } = {
-      groupId: toObjectId(groupId),
-    };
+    let query = supabase
+      .from("group_expenses")
+      .select(GROUP_EXPENSE_SELECT, { count: "exact" })
+      .eq("group_id", groupId)
+      .order(SORT_COLUMNS[q.sortBy ?? "incurredAt"], { ascending: q.sortOrder === "asc" });
+    if (q.startDate) query = query.gte("incurred_at", q.startDate);
+    if (q.endDate) query = query.lte("incurred_at", q.endDate);
+    if (q.createdBy) query = query.eq("created_by", q.createdBy);
+    if (shouldPaginate) query = query.range((page - 1) * limit, page * limit - 1);
 
-    if (queryParams.startDate || queryParams.endDate) {
-      historyQuery.incurredAt = {};
-      if (queryParams.startDate) {
-        historyQuery.incurredAt.$gte = new Date(queryParams.startDate);
-      }
-      if (queryParams.endDate) {
-        historyQuery.incurredAt.$lte = new Date(queryParams.endDate);
-      }
-    }
-
-    if (queryParams.createdBy) {
-      historyQuery.createdBy = toObjectId(queryParams.createdBy);
-    }
-
-    const totalCountPromise = GroupExpense.countDocuments(historyQuery);
-    const findQuery = GroupExpense.find(historyQuery).sort({ [sortField]: sortDirection });
-
-    if (shouldPaginate) {
-      findQuery.skip((page - 1) * limit).limit(limit);
-    }
-
-    const [totalCount, expenses] = await Promise.all([totalCountPromise, findQuery.lean()]);
+    const result = await query;
+    const rows = must(result) as GroupExpenseRow[];
+    const totalCount = result.count ?? rows.length;
 
     return Response.json({
-      expenses,
+      expenses: rows.map(toGroupExpense),
       pagination: shouldPaginate
         ? {
             page,
@@ -155,45 +124,19 @@ export async function GET(
         : null,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid group expense query", 422);
-    }
-
-    if (error instanceof Error && error.message === "Invalid identifier") {
-      return jsonError("Invalid identifier", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load group expenses", 500);
+    return handleRouteError(error, "Failed to load group expenses");
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
-) {
+export async function POST(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase } = await requireUser();
     const payload = createExpenseSchema.parse(await request.json());
     const { groupId } = await params;
 
-    await connectToDatabase();
-
-    const group = await Group.findById(toObjectId(groupId));
-
-    if (!group) {
-      return jsonError("Group not found", 404);
-    }
-
-    const memberIds = getGroupMemberIds(group);
-
-    if (!memberIds.includes(userId)) {
-      return jsonError("Forbidden", 403);
-    }
+    const group = await loadGroup(supabase, groupId);
+    if (!group) return jsonError("Group not found", 404);
+    const memberIds = memberIdsOf(group);
 
     for (const payer of payload.paidBy) {
       if (!memberIds.includes(payer.userId)) {
@@ -203,65 +146,54 @@ export async function POST(
 
     const splitEntries = payload.splits ?? [];
     const lineItems = payload.lineItems ?? [];
-    const shares = computeShares(
-      payload.amount,
-      payload.splitType,
-      splitEntries,
-      memberIds,
-      lineItems,
-    );
-    validatePayers(payload.amount, payload.paidBy);
 
-    const expense = await GroupExpense.create({
-      groupId: toObjectId(groupId),
-      createdBy: toObjectId(userId),
-      title: payload.title,
-      notes: payload.notes,
-      amount: payload.amount,
-      currency: "INR",
-      splitType: payload.splitType,
-      paidBy: payload.paidBy.map((payer) => ({
-        userId: toObjectId(payer.userId),
-        amount: payer.amount,
-      })),
-      splits: shares.map((share) => {
-        const splitDetails = splitEntries.find((split) => split.userId === share.userId);
+    // The split strategies throw plain Errors with user-facing messages
+    // ("Percentages must add up to 100", …); surface those as 422s.
+    let shares: ReturnType<typeof computeShares>;
+    try {
+      shares = computeShares(payload.amount, payload.splitType, splitEntries, memberIds, lineItems);
+      validatePayers(payload.amount, payload.paidBy);
+    } catch (error) {
+      throw new HttpError(422, error instanceof Error ? error.message : "Invalid split");
+    }
 
-        return {
-          userId: toObjectId(share.userId),
-          amount: splitDetails?.amount,
-          percentage: splitDetails?.percentage,
-          shareAmount: share.shareAmount,
-        };
+    // Expense, payers and splits are written in one transaction by the SQL
+    // function, which re-checks membership and that the parts sum to the total.
+    const expenseId = must(
+      await supabase.rpc("create_group_expense", {
+        p_group_id: groupId,
+        p_title: payload.title,
+        p_notes: payload.notes ?? null,
+        p_amount: payload.amount,
+        p_split_type: payload.splitType,
+        p_payers: payload.paidBy,
+        p_splits: shares.map((share) => {
+          const input = splitEntries.find((split) => split.userId === share.userId);
+          return {
+            userId: share.userId,
+            amount: input?.amount ?? null,
+            percentage: input?.percentage ?? null,
+            shareAmount: share.shareAmount,
+          };
+        }),
+        p_line_items: lineItems.map((item) => ({
+          _id: randomUUID(),
+          label: item.label,
+          amount: item.amount,
+          sharedBy: item.sharedBy,
+          proportional: item.proportional ?? false,
+        })),
+        p_incurred_at: payload.incurredAt ?? new Date().toISOString(),
       }),
-      lineItems: lineItems.map((item) => ({
-        label: item.label,
-        amount: item.amount,
-        sharedBy: item.sharedBy.map((userId) => toObjectId(userId)),
-        proportional: item.proportional ?? false,
-      })),
-      incurredAt: payload.incurredAt ? new Date(payload.incurredAt) : new Date(),
-    });
+    ) as string;
 
-    return Response.json({ expense }, { status: 201 });
+    const row = must(
+      await supabase.from("group_expenses").select(GROUP_EXPENSE_SELECT).eq("id", expenseId).single(),
+    ) as GroupExpenseRow;
+
+    await invalidateUsers(memberIds);
+    return Response.json({ expense: toGroupExpense(row) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid group expense input", 422);
-    }
-
-    if (error instanceof Error && error.message === "Invalid identifier") {
-      return jsonError("Invalid identifier", 422);
-    }
-
-    if (error instanceof Error) {
-      return jsonError(error.message, 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to create group expense", 500);
+    return handleRouteError(error, "Failed to create group expense");
   }
 }

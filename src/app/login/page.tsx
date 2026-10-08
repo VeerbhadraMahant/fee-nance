@@ -1,38 +1,40 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
 import { AuthLayout } from "@/components/auth/auth-layout";
-import { LoginForm } from "@/components/auth/login-form";
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function LoginPage() {
-  const session = await getServerSession(authOptions);
+const ERRORS: Record<string, string> = {
+  oauth: "Google sign-in didn't complete. Please try again.",
+  config: "Sign-in isn't configured on this server yet.",
+};
 
-  if (session?.user?.id) {
-    redirect("/dashboard");
-  }
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; error?: string }>;
+}) {
+  // Signed-in visitors are redirected to the dashboard by the proxy.
+  const { next, error } = await searchParams;
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to pick up where you left off."
-      footer={
-        <>
-          New here?{" "}
-          <Link
-            href="/register"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Create an account
-          </Link>
-        </>
-      }
+      title="Welcome to Fee-Nance"
+      subtitle="Sign in with your Google account. New here? The same button creates your account."
     >
-      <LoginForm />
+      <div className="space-y-5">
+        {error && ERRORS[error] && (
+          <p role="alert" className="rounded-2xl bg-destructive-subtle px-4 py-2.5 text-sm text-destructive">
+            {ERRORS[error]}
+          </p>
+        )}
+        <GoogleSignInButton next={safeNextPath(next)} />
+        <p className="text-center text-xs text-muted-foreground">
+          We only use your name, email and profile picture from Google.
+        </p>
+      </div>
     </AuthLayout>
   );
 }

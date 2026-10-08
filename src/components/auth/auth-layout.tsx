@@ -35,7 +35,7 @@ export function AuthLayout({
 }: {
   title: string;
   subtitle: string;
-  footer: React.ReactNode;
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -67,7 +67,7 @@ export function AuthLayout({
 
             {children}
 
-            <p className="text-sm text-muted-foreground">{footer}</p>
+            {footer && <p className="text-sm text-muted-foreground">{footer}</p>}
           </div>
         </div>
       </div>
@@ -105,8 +105,8 @@ export function AuthLayout({
 
           <Card className="rounded-3xl bg-card/95 p-4 text-card-foreground">
             <p className="text-sm text-muted-foreground">
-              Built as a DBMS mini-project: MongoDB aggregation pipelines behind
-              every chart, with authenticated, per-user data isolation.
+              Built as a DBMS mini-project: Postgres window functions and row-level
+              security behind every chart, so each person only ever sees their own data.
             </p>
           </Card>
         </div>
