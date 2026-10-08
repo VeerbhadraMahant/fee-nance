@@ -161,7 +161,7 @@ Google's client ID and secret live in the Supabase dashboard, not in this app's 
 
 ```bash
 npm install
-npm run dev            # http://localhost:3000
+npm run dev          # http://localhost:3000
 ```
 
 Sign in with Google once, then optionally fill your account with a year of demo data:
