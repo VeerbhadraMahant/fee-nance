@@ -13,6 +13,11 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = safeNextPath(searchParams.get("next"));
 
+  // Supabase/Google report failures (e.g. the user cancelled consent) as query params.
+  if (searchParams.get("error")) {
+    return NextResponse.redirect(`${origin}/login?error=${searchParams.get("error") === "access_denied" ? "denied" : "oauth"}`);
+  }
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);

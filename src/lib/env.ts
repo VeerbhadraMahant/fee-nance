@@ -19,6 +19,9 @@ const schema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
   // Selects a receipt OCR implementation from src/lib/receipt/registry.ts.
   RECEIPT_EXTRACTOR: z.string().min(1).optional(),
+  // Gemini key for the Financial Health Copilot. Unset: the copilot reports itself unavailable.
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL: z.string().min(1).optional(),
 });
 
 // NEXT_PUBLIC_ values must be referenced literally for Next to inline them
@@ -30,6 +33,8 @@ const parsed = schema.parse({
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL || undefined,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
   RECEIPT_EXTRACTOR: process.env.RECEIPT_EXTRACTOR || undefined,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || undefined,
+  GEMINI_MODEL: process.env.GEMINI_MODEL || undefined,
 });
 
 function required(value: string | undefined, key: string) {
@@ -52,4 +57,6 @@ export const env = {
   UPSTASH_REDIS_REST_URL: parsed.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: parsed.UPSTASH_REDIS_REST_TOKEN,
   RECEIPT_EXTRACTOR: parsed.RECEIPT_EXTRACTOR,
+  GEMINI_API_KEY: parsed.GEMINI_API_KEY,
+  GEMINI_MODEL: parsed.GEMINI_MODEL ?? "gemini-3.8-flash",
 };

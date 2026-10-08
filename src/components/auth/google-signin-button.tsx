@@ -51,7 +51,12 @@ export function GoogleSignInButton({ next = "/dashboard" }: { next?: string }) {
     // On success the browser is already navigating to Google.
     if (oauthError) {
       setPending(false);
-      setError("Couldn't reach Google sign-in. Try again in a moment.");
+      const notEnabled = /provider is not enabled|unsupported provider/i.test(oauthError.message);
+      setError(
+        notEnabled
+          ? "Google sign-in isn't enabled for this project yet. Turn on the Google provider in Supabase → Authentication → Sign In / Providers."
+          : "Couldn't reach Google sign-in. Try again in a moment.",
+      );
     }
   };
 

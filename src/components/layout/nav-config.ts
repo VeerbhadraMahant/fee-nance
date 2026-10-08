@@ -6,6 +6,7 @@ import {
   Landmark,
   LayoutDashboard,
   Radar,
+  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -65,6 +66,13 @@ export const TRACK_ITEMS: NavItem[] = [
 
 /** Forward-looking tools, ported from HackMatrix. */
 export const PLAN_ITEMS: NavItem[] = [
+  {
+    href: "/copilot",
+    label: "Copilot",
+    icon: Sparkles,
+    description: "Ask an AI about your own money",
+    keywords: "ai assistant chat advice health coach agent",
+  },
   {
     href: "/goals",
     label: "Goals",

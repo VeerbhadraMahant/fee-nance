@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: "Sign in" };
 
 const ERRORS: Record<string, string> = {
   oauth: "Google sign-in didn't complete. Please try again.",
+  denied: "Sign-in was cancelled. Continue with Google whenever you're ready.",
   config: "Sign-in isn't configured on this server yet.",
 };
 
