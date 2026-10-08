@@ -1,5 +1,7 @@
 # Fee-Nance
 
+[![CI](https://github.com/VeerbhadraMahant/fee-nance/actions/workflows/ci.yml/badge.svg)](https://github.com/VeerbhadraMahant/fee-nance/actions/workflows/ci.yml)
+
 Most people track personal spending in one app and split group bills in another, so neither view is complete. Fee-Nance puts both in one place: personal income, expenses and budgets alongside shared group expenses and settlements, over a single account and a single set of categories.
 
 Built with Next.js 16 (App Router) on Supabase: Postgres with row-level security, Supabase Auth with Google sign-in, and an optional Redis cache. Next.js is the only server. Currency is INR only.
@@ -176,6 +178,39 @@ npm run seed:demo -- you@gmail.com
 - `npm run lint`, `npm run format` — ESLint (with `--fix`)
 - `npm run verify:calc` — the pure money modules: split allocation, forecast, tax, health score, goals, recurring detection, plus route error mapping. No database needed
 - `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function and the group invariants. No Supabase project needed
+- `npm run seed:demo -- <email> [--reset]` — fills an account that has signed in once with a year of demo data (needs `SUPABASE_SERVICE_ROLE_KEY`)
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on every push to `main`:
+
+1. `npm ci`
+2. `npm run lint`
+3. `npx tsc --noEmit`
+4. `npm run verify:calc`
+5. `npm run verify:db`
+6. `npm run build` — deliberately with **no** Supabase variables, so the build can never come to depend on runtime secrets
+
+It needs no secrets or Supabase project, so it also runs on pull requests from forks. Run the same steps locally before pushing to catch failures early.
+
+## Deployment (Vercel)
+
+1. Import the repository in Vercel; the Next.js defaults (`npm run build`, output `.next`) are correct.
+2. Add the environment variables from the table above under *Project Settings → Environment Variables*: at minimum `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, for Production and Preview. Do **not** add `SUPABASE_SERVICE_ROLE_KEY`: the app never uses it.
+3. `NEXT_PUBLIC_` values are inlined at build time, so **redeploy after changing them**.
+4. Add the deployment URL (and `https://*-<team>.vercel.app/**` if you use preview deployments) to Supabase's redirect allow-list, as in step 1.4 above.
+5. Apply any new files in `supabase/migrations/` to the Supabase project before (or together with) deploying code that needs them.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `/login?error=config`, or API calls answer `503 Supabase is not configured` | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing. Set them and restart (or redeploy on Vercel) |
+| Google shows `redirect_uri_mismatch` | The Google OAuth client is missing `https://<project-ref>.supabase.co/auth/v1/callback` as a redirect URI |
+| After Google, you land on `/login?error=oauth` | The app URL isn't in Supabase's redirect allow-list (*Authentication → URL Configuration*), or the sign-in was cancelled |
+| Signed in, but every page shows "Couldn't load…" and the server logs mention a missing relation or function | The migrations haven't been applied to this Supabase project |
+| `npm run seed:demo` says there's no account | Sign in with Google once first, so the auth user and profile exist |
+| Numbers look a few minutes old | Expected with Redis on only if data changed outside the app (e.g. in the SQL editor); writes through the app invalidate immediately. Entries expire after 5 minutes |
 
 ## Routes
 
@@ -215,7 +250,7 @@ Database:
 
 API and operations:
 - `docs/private-api-reference.md`
-- `docs/insights-pipelines.md` — the `$setWindowFields` pipelines behind `/insights`
+- `docs/insights-pipelines.md` — the original MongoDB pipelines behind `/insights`, now the SQL window functions in `supabase/migrations/`
 - `docs/secrets-policy.md`
 - `docs/demo-script.md`, `docs/manual-qa-checklist.md`
 
