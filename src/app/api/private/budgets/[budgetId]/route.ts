@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
-import { connectToDatabase } from "@/lib/db";
+import { toBudget, type BudgetRow } from "@/lib/data/mappers";
 import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Budget } from "@/models/Budget";
+import { handleRouteError, isUuid, must } from "@/lib/route";
 
 const updateBudgetSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
@@ -16,97 +16,59 @@ const updateBudgetSchema = z.object({
   periodEnd: z.string().datetime().optional(),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ budgetId: string }> },
-) {
+type Params = { params: Promise<{ budgetId: string }> };
+
+export async function PATCH(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = updateBudgetSchema.parse(await request.json());
     const { budgetId } = await params;
+    if (!isUuid(budgetId)) return jsonError("Budget not found", 404);
 
-    await connectToDatabase();
+    const current = must(
+      await supabase.from("budgets").select("period_start, period_end").eq("id", budgetId).maybeSingle(),
+    ) as Pick<BudgetRow, "period_start" | "period_end"> | null;
+    if (!current) return jsonError("Budget not found", 404);
 
-    const budget = await Budget.findOne({
-      _id: toObjectId(budgetId),
-      userId: toObjectId(userId),
-    });
-
-    if (!budget) {
-      return jsonError("Budget not found", 404);
-    }
-
-    const periodStart = payload.periodStart ? new Date(payload.periodStart) : budget.periodStart;
-    const periodEnd = payload.periodEnd ? new Date(payload.periodEnd) : budget.periodEnd;
-
-    if (periodEnd <= periodStart) {
+    const periodStart = payload.periodStart ?? current.period_start;
+    const periodEnd = payload.periodEnd ?? current.period_end;
+    if (new Date(periodEnd) <= new Date(periodStart)) {
       return jsonError("Budget period end must be after period start", 422);
     }
 
-    if (payload.name) {
-      budget.name = payload.name;
-    }
-    if (payload.amount) {
-      budget.amount = payload.amount;
-    }
-    if (payload.cycle) {
-      budget.cycle = payload.cycle;
-    }
+    const updates: Record<string, unknown> = { period_start: periodStart, period_end: periodEnd };
+    if (payload.name) updates.name = payload.name;
+    if (payload.amount) updates.amount = payload.amount;
+    if (payload.cycle) updates.cycle = payload.cycle;
     if (payload.categoryId !== undefined) {
-      const categoryId = await resolveAccessibleCategoryId(payload.categoryId, userId);
-      budget.categoryId = categoryId;
+      updates.category_id = await resolveAccessibleCategoryId(supabase, payload.categoryId);
     }
 
-    budget.periodStart = periodStart;
-    budget.periodEnd = periodEnd;
+    const row = must(
+      await supabase.from("budgets").update(updates).eq("id", budgetId).select().single(),
+    ) as BudgetRow;
 
-    await budget.save();
-
-    return Response.json({ budget });
+    await invalidateUsers([userId]);
+    return Response.json({ budget: toBudget(row) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid budget update", 422);
-    }
-
-    if (error instanceof Error) {
-      return jsonError(error.message, 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to update budget", 500);
+    return handleRouteError(error, "Failed to update budget");
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ budgetId: string }> },
-) {
+export async function DELETE(_request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const { budgetId } = await params;
+    if (!isUuid(budgetId)) return jsonError("Budget not found", 404);
 
-    await connectToDatabase();
+    const deleted = must(
+      await supabase.from("budgets").delete().eq("id", budgetId).select("id"),
+    ) as Array<{ id: string }>;
+    if (!deleted.length) return jsonError("Budget not found", 404);
 
-    const deleted = await Budget.findOneAndDelete({
-      _id: toObjectId(budgetId),
-      userId: toObjectId(userId),
-    });
-
-    if (!deleted) {
-      return jsonError("Budget not found", 404);
-    }
-
+    await invalidateUsers([userId]);
     return Response.json({ success: true });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to delete budget", 500);
+    return handleRouteError(error, "Failed to delete budget");
   }
 }

@@ -1,12 +1,9 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { ensureDefaultCategories } from "@/lib/default-categories";
-import { jsonError } from "@/lib/http";
-import { isMongoDuplicateKeyError } from "@/lib/mongo-errors";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Category } from "@/models/Category";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { toCategory, type CategoryRow } from "@/lib/data/mappers";
+import { handleRouteError, must } from "@/lib/route";
 
 const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(50),
@@ -15,60 +12,49 @@ const createCategorySchema = z.object({
   color: z.string().trim().min(4).max(20).optional(),
 });
 
+/** System categories first, then the caller's own, alphabetically. RLS does the scoping. */
 export async function GET() {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
-    await ensureDefaultCategories();
+    const { supabase } = await requireUser();
+    const rows = must(
+      await supabase
+        .from("categories")
+        .select("*")
+        .order("is_system", { ascending: false })
+        .order("name", { ascending: true }),
+    ) as CategoryRow[];
 
-    const categories = await Category.find({
-      $or: [{ isSystem: true }, { userId: toObjectId(userId) }],
-    })
-      .sort({ isSystem: -1, name: 1 })
-      .lean();
-
-    return Response.json({ categories });
+    return Response.json({ categories: rows.map(toCategory) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load categories", 500);
+    return handleRouteError(error, "Failed to load categories");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = createCategorySchema.parse(await request.json());
 
-    await connectToDatabase();
+    const row = must(
+      await supabase
+        .from("categories")
+        .insert({
+          user_id: userId,
+          name: payload.name,
+          type: payload.type,
+          icon: payload.icon ?? null,
+          color: payload.color ?? null,
+          is_system: false,
+        })
+        .select()
+        .single(),
+    ) as CategoryRow;
 
-    const category = await Category.create({
-      userId: toObjectId(userId),
-      name: payload.name,
-      type: payload.type,
-      icon: payload.icon,
-      color: payload.color,
-      isSystem: false,
-    });
-
-    return Response.json({ category }, { status: 201 });
+    await invalidateUsers([userId]);
+    return Response.json({ category: toCategory(row) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid category input", 422);
-    }
-
-    if (isMongoDuplicateKeyError(error)) {
-      return jsonError("Category with this name and type already exists", 409);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to create category", 500);
+    return handleRouteError(error, "Failed to create category", {
+      conflictMessage: "Category with this name and type already exists",
+    });
   }
 }

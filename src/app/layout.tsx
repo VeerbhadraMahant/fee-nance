@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, DM_Sans, JetBrains_Mono } from "next/font/google";
 
-import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/misc";
 import { Toaster } from "@/components/ui/toaster";
@@ -59,12 +58,10 @@ export default function RootLayout({
     >
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <ThemeProvider>
-          <AuthSessionProvider>
-            <TooltipProvider delayDuration={200}>
-              {children}
-              <Toaster />
-            </TooltipProvider>
-          </AuthSessionProvider>
+          <TooltipProvider delayDuration={200}>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

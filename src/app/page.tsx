@@ -72,7 +72,7 @@ export default function Home() {
               <Link href="/login">Sign in</Link>
             </Button>
             <Button asChild>
-              <Link href="/register">Get started</Link>
+              <Link href="/login">Get started</Link>
             </Button>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function Home() {
           <Reveal delay={240}>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" asChild className="w-full sm:w-auto">
-                <Link href="/register">
+                <Link href="/login">
                   Create your account
                   <ArrowRight className="size-4" />
                 </Link>
@@ -173,7 +173,7 @@ export default function Home() {
               asChild
               className="mt-7 border-[1.5px] border-foreground"
             >
-              <Link href="/register">
+              <Link href="/login">
                 Get started
                 <ArrowRight className="size-4" />
               </Link>

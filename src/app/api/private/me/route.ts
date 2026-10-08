@@ -1,11 +1,9 @@
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
-import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { defaultUserPreferences, dashboardRangeValues } from "@/lib/user-preferences";
-import { logger } from "@/lib/logger";
-import { User } from "@/models/User";
 import { z } from "zod";
+
+import { requireUser } from "@/lib/api-auth";
+import { jsonError } from "@/lib/http";
+import { handleRouteError, must } from "@/lib/route";
+import { dashboardRangeValues, type DashboardDefaultRange } from "@/lib/user-preferences";
 
 const preferenceSchema = z.object({
   currency: z.literal("INR").optional(),
@@ -22,102 +20,64 @@ const updateProfileSchema = z
       value.name !== undefined ||
       value.preferences?.currency !== undefined ||
       value.preferences?.dashboardDefaultRange !== undefined,
-    {
-    message: "At least one field is required",
-    },
+    { message: "At least one field is required" },
   );
 
-function serializeUser(user: {
-  _id: { toString(): string };
+interface ProfileRow {
+  id: string;
   name: string;
   email: string;
-  image?: string;
-  preferences?: {
-    currency?: "INR";
-    dashboardDefaultRange?: (typeof dashboardRangeValues)[number];
-  };
-}) {
+  avatar_url: string | null;
+  currency: "INR";
+  dashboard_default_range: DashboardDefaultRange;
+}
+
+const PROFILE_COLUMNS = "id, name, email, avatar_url, currency, dashboard_default_range";
+
+function serialize(row: ProfileRow) {
   return {
-    id: user._id.toString(),
-    name: user.name,
-    email: user.email,
-    image: user.image,
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.avatar_url ?? undefined,
     preferences: {
-      currency: user.preferences?.currency ?? defaultUserPreferences.currency,
-      dashboardDefaultRange:
-        user.preferences?.dashboardDefaultRange ?? defaultUserPreferences.dashboardDefaultRange,
+      currency: row.currency,
+      dashboardDefaultRange: row.dashboard_default_range,
     },
   };
 }
 
 export async function GET() {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
-
-    const user = await User.findById(toObjectId(userId))
-      .select("_id name email image preferences")
-      .lean();
-
-    if (!user) {
-      return jsonError("User not found", 404);
-    }
-
-    return Response.json({ user: serializeUser(user) });
+    const { supabase, userId } = await requireUser();
+    const row = must(
+      await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle(),
+    ) as ProfileRow | null;
+    if (!row) return jsonError("User not found", 404);
+    return Response.json({ user: serialize(row) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load user profile", 500);
+    return handleRouteError(error, "Failed to load user profile");
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = updateProfileSchema.parse(await request.json());
 
-    await connectToDatabase();
-
     const updates: Record<string, unknown> = {};
-
-    if (payload.name !== undefined) {
-      updates.name = payload.name;
-    }
-
-    if (payload.preferences?.currency !== undefined) {
-      updates["preferences.currency"] = payload.preferences.currency;
-    }
-
+    if (payload.name !== undefined) updates.name = payload.name;
+    if (payload.preferences?.currency !== undefined) updates.currency = payload.preferences.currency;
     if (payload.preferences?.dashboardDefaultRange !== undefined) {
-      updates["preferences.dashboardDefaultRange"] = payload.preferences.dashboardDefaultRange;
+      updates.dashboard_default_range = payload.preferences.dashboardDefaultRange;
     }
 
-    const user = await User.findByIdAndUpdate(
-      toObjectId(userId),
-      { $set: updates },
-      { new: true, runValidators: true },
-    )
-      .select("_id name email image preferences")
-      .lean();
-
-    if (!user) {
-      return jsonError("User not found", 404);
-    }
-
-    return Response.json({ user: serializeUser(user) });
+    const row = must(
+      await supabase.from("profiles").update(updates).eq("id", userId).select(PROFILE_COLUMNS).maybeSingle(),
+    ) as ProfileRow | null;
+    if (!row) return jsonError("User not found", 404);
+    return Response.json({ user: serialize(row) });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid input", 422);
-    }
-
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to update user profile", 500);
+    return handleRouteError(error, "Failed to update user profile");
   }
 }

@@ -1,23 +1,26 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import { connection } from "next/server";
 
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { AppShell } from "@/components/layout/app-shell";
+import { CurrentUserProvider } from "@/components/providers/current-user";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Per-request by nature; say so explicitly so the build never tries to
-  // prerender it (which needs the auth secret at build time).
+  // Per-request by nature; never prerender it at build time.
   await connection();
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUser();
 
-  if (!session?.user?.id) {
+  if (!user) {
     redirect("/login");
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <CurrentUserProvider user={user}>
+      <AppShell>{children}</AppShell>
+    </CurrentUserProvider>
+  );
 }

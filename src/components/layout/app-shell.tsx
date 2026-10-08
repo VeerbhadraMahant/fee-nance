@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
 import { LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -27,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useCurrentUser } from "@/components/providers/current-user";
 import {
   Sheet,
   SheetContent,
@@ -72,10 +72,10 @@ function AccountMenu({
   /** Avatar only — the mobile top bar has no room for the name. */
   compact?: boolean;
 }) {
-  const { data: session } = useSession();
+  const user = useCurrentUser();
   const { confirm, confirmDialog } = useConfirm();
-  const name = session?.user?.name ?? "Your account";
-  const email = session?.user?.email ?? "";
+  const name = user?.name ?? "Your account";
+  const email = user?.email ?? "";
 
   const handleSignOut = async () => {
     const ok = await confirm({
@@ -84,7 +84,14 @@ function AccountMenu({
       confirmLabel: "Sign out",
       destructive: true,
     });
-    if (ok) await signOut({ callbackUrl: "/login" });
+    if (!ok) return;
+    // A real form POST: the route clears the auth cookies and redirects, and
+    // the full navigation drops every client-side cache with them.
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/auth/signout";
+    document.body.appendChild(form);
+    form.submit();
   };
 
   return (

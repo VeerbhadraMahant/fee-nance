@@ -1,13 +1,11 @@
 import { z } from "zod";
 
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { toGoal, type GoalRow } from "@/lib/data/mappers";
 import { GOAL_THEMES } from "@/lib/goals";
-import { jsonError } from "@/lib/http";
 import { averageSurplus, completedMonthTotals } from "@/lib/ledger-stats";
-import { logger } from "@/lib/logger";
-import { toObjectId } from "@/lib/object-id";
-import { Goal } from "@/models/Goal";
+import { handleRouteError, must } from "@/lib/route";
 
 const createGoalSchema = z
   .object({
@@ -24,17 +22,21 @@ const createGoalSchema = z
 
 export async function GET() {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
-    const userObjectId = toObjectId(userId);
+    const { supabase } = await requireUser();
 
-    const [goals, stats] = await Promise.all([
-      Goal.find({ userId: userObjectId }).sort({ completedAt: 1, createdAt: -1 }).lean(),
-      completedMonthTotals(userObjectId, 3),
+    const [goalsResult, stats] = await Promise.all([
+      supabase
+        .from("goals")
+        .select("*")
+        // Unfinished goals first (completed_at null sorts first ascending), newest first within.
+        .order("completed_at", { ascending: true, nullsFirst: true })
+        .order("created_at", { ascending: false }),
+      completedMonthTotals(supabase, 3),
     ]);
+    const goals = must(goalsResult) as GoalRow[];
 
     return Response.json({
-      goals,
+      goals: goals.map(toGoal),
       // What the ledger says the user actually puts aside each month. The page
       // sets each goal's projection against this, so the numbers stay honest
       // when several goals compete for the same surplus.
@@ -42,44 +44,34 @@ export async function GET() {
       surplusMonths: stats.months.length,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load goals", 500);
+    return handleRouteError(error, "Failed to load goals");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = createGoalSchema.parse(await request.json());
 
-    await connectToDatabase();
+    const row = must(
+      await supabase
+        .from("goals")
+        .insert({
+          user_id: userId,
+          name: payload.name,
+          theme: payload.theme,
+          target_amount: payload.targetAmount,
+          saved_amount: payload.savedAmount,
+          target_date: payload.targetDate ?? null,
+          completed_at: payload.savedAmount >= payload.targetAmount ? new Date().toISOString() : null,
+        })
+        .select()
+        .single(),
+    ) as GoalRow;
 
-    const goal = await Goal.create({
-      userId: toObjectId(userId),
-      name: payload.name,
-      theme: payload.theme,
-      targetAmount: payload.targetAmount,
-      savedAmount: payload.savedAmount,
-      currency: "INR",
-      targetDate: payload.targetDate ? new Date(payload.targetDate) : undefined,
-      completedAt: payload.savedAmount >= payload.targetAmount ? new Date() : undefined,
-    });
-
-    return Response.json({ goal }, { status: 201 });
+    await invalidateUsers([userId]);
+    return Response.json({ goal: toGoal(row) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid goal input", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to create goal", 500);
+    return handleRouteError(error, "Failed to create goal");
   }
 }

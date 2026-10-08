@@ -8,11 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "format": "eslint . --fix",
-    "seed": "tsx --env-file-if-exists=.env.local --env-file=.env src/scripts/seed.ts",
-    "seed:dev-user": "tsx --env-file-if-exists=.env.local --env-file=.env src/scripts/seed-dev-user.ts",
     "verify:calc": "tsx src/scripts/verify-calculations.ts",
-    "dbms:report": "tsx --env-file-if-exists=.env.local --env-file=.env src/scripts/dbms-report.ts",
-    "verify:db": "tsx src/scripts/verify-db.ts"
+    "verify:db": "tsx src/scripts/verify-db.ts",
+    "seed:demo": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env src/scripts/seed-demo.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.21",

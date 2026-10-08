@@ -43,10 +43,14 @@ const AUTH_STUB = `
   grant execute on function auth.uid() to anon, authenticated, service_role;
 `;
 
-// Supabase grants these on the public schema out of the box; RLS does the rest.
+// Supabase sets these default privileges on the public schema before any
+// migration runs, so every new table is fully granted and RLS does the rest.
+// Applying them first (not after) means a REVOKE in a migration is honoured,
+// exactly as on a real project.
 const SUPABASE_DEFAULT_GRANTS = `
   grant usage on schema public to anon, authenticated, service_role;
-  grant all on all tables in schema public to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `;
 
 const ALICE = "00000000-0000-0000-0000-00000000000a";
@@ -56,6 +60,7 @@ const CAROL = "00000000-0000-0000-0000-00000000000c";
 async function main() {
   const db = new PGlite();
   await db.exec(AUTH_STUB);
+  await db.exec(SUPABASE_DEFAULT_GRANTS);
 
   const dir = path.join(process.cwd(), "supabase", "migrations");
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
@@ -66,7 +71,6 @@ async function main() {
     }
     console.log(`  applied ${file}`);
   }
-  await db.exec(SUPABASE_DEFAULT_GRANTS);
 
   // Sign-ups go through auth.users, so the profile trigger runs.
   await db.query(
@@ -104,6 +108,15 @@ async function main() {
     check("falls back to the email local part", profiles[2]?.name === "carol");
     const seen = await as(ALICE, () => rows(`select id from profiles`));
     check("a user sees only themself before sharing a group", seen.length === 1);
+    await as(ALICE, () => db.query(`update profiles set name = 'Alice R.' where id = $1`, [ALICE]));
+    const renamed = await rows<{ name: string }>(`select name from profiles where id = $1`, [ALICE]);
+    check("a user can rename themself", renamed[0]?.name === "Alice R.");
+    const emailEdit = await fails(() =>
+      as(ALICE, () => db.query(`update profiles set email = 'boss@bank.com' where id = $1`, [ALICE])),
+    );
+    check("a user can't rewrite their email", emailEdit !== null && /permission/i.test(emailEdit), emailEdit ?? "");
+    const otherEdit = await as(BOB, () => db.query(`update profiles set name = 'Pwned' where id = $1`, [ALICE]));
+    check("a user can't rename someone else", otherEdit.affectedRows === 0);
   }
 
   console.log("\nCategories");

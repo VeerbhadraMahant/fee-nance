@@ -1,7 +1,7 @@
 /**
  * Cash-flow projection.
  *
- * Pure — no Mongoose, no I/O, no clock of its own. Everything it needs is
+ * Pure — no database, no I/O, no clock of its own. Everything it needs is
  * passed in, which is what makes it the one piece of money logic in the
  * codebase that can be unit-tested today (backlog item T1).
  *

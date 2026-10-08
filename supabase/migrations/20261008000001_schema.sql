@@ -298,6 +298,11 @@ create policy profiles_select on public.profiles for select to authenticated
   using (id = auth.uid() or public.shares_group_with(id));
 create policy profiles_update on public.profiles for update to authenticated
   using (id = auth.uid()) with check (id = auth.uid());
+-- Only the fields the profile page edits. Email and avatar come from Google
+-- via the sign-up trigger; letting a user rewrite their email here would
+-- change what their group-mates see without changing who they are.
+revoke update on public.profiles from authenticated, anon;
+grant update (name, currency, dashboard_default_range) on public.profiles to authenticated;
 
 -- Categories: system ones are readable by all; your own are fully yours.
 create policy categories_select on public.categories for select to authenticated

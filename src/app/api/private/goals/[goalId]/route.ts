@@ -1,13 +1,12 @@
 import { z } from "zod";
 
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { toGoal, type GoalRow } from "@/lib/data/mappers";
 import { GOAL_THEMES } from "@/lib/goals";
 import { jsonError } from "@/lib/http";
-import { logger } from "@/lib/logger";
 import { roundCurrency } from "@/lib/money";
-import { toObjectId } from "@/lib/object-id";
-import { Goal } from "@/models/Goal";
+import { handleRouteError, isUuid, must } from "@/lib/route";
 
 const updateGoalSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
@@ -19,87 +18,76 @@ const updateGoalSchema = z.object({
   targetDate: z.string().datetime().nullable().optional(),
 });
 
-function handleError(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message === "UNAUTHORIZED") {
-    return jsonError("Unauthorized", 401);
-  }
-  if (error instanceof Error && error.message === "Invalid identifier") {
-    return jsonError("Goal not found", 404);
-  }
-  if (error instanceof z.ZodError) {
-    return jsonError(error.issues[0]?.message ?? "Invalid goal input", 422);
-  }
+type Params = { params: Promise<{ goalId: string }> };
 
-  logger.error("Unhandled API route error", error);
-  return jsonError(fallback, 500);
-}
-
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ goalId: string }> },
-) {
+export async function PATCH(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = updateGoalSchema.parse(await request.json());
     const { goalId } = await params;
+    if (!isUuid(goalId)) return jsonError("Goal not found", 404);
 
-    await connectToDatabase();
+    const goal = must(
+      await supabase.from("goals").select("*").eq("id", goalId).maybeSingle(),
+    ) as GoalRow | null;
+    if (!goal) return jsonError("Goal not found", 404);
 
-    // Ownership is part of the filter, so someone else's goal is a plain 404.
-    const goal = await Goal.findOne({ _id: toObjectId(goalId), userId: toObjectId(userId) });
-    if (!goal) {
-      return jsonError("Goal not found", 404);
-    }
-
-    if (payload.name !== undefined) goal.name = payload.name;
-    if (payload.theme !== undefined) goal.theme = payload.theme;
-    if (payload.targetAmount !== undefined) goal.targetAmount = payload.targetAmount;
-    if (payload.savedAmount !== undefined) goal.savedAmount = payload.savedAmount;
+    const targetAmount = payload.targetAmount ?? Number(goal.target_amount);
+    let savedAmount = payload.savedAmount ?? Number(goal.saved_amount);
     if (payload.contribution !== undefined) {
-      goal.savedAmount = roundCurrency(goal.savedAmount + payload.contribution);
+      savedAmount = roundCurrency(savedAmount + payload.contribution);
     }
-    if (payload.targetDate !== undefined) {
-      goal.targetDate = payload.targetDate ? new Date(payload.targetDate) : undefined;
-    }
-
-    if (goal.savedAmount < 0) {
+    if (savedAmount < 0) {
       return jsonError("You can't withdraw more than has been saved", 422);
     }
 
-    const wasComplete = Boolean(goal.completedAt);
-    const isComplete = goal.savedAmount >= goal.targetAmount;
-    if (isComplete && !wasComplete) goal.completedAt = new Date();
-    if (!isComplete && wasComplete) goal.completedAt = undefined;
+    const wasComplete = Boolean(goal.completed_at);
+    const isComplete = savedAmount >= targetAmount;
 
-    await goal.save();
+    const updates: Record<string, unknown> = {
+      target_amount: targetAmount,
+      saved_amount: savedAmount,
+      completed_at: isComplete ? (goal.completed_at ?? new Date().toISOString()) : null,
+    };
+    if (payload.name !== undefined) updates.name = payload.name;
+    if (payload.theme !== undefined) updates.theme = payload.theme;
+    if (payload.targetDate !== undefined) updates.target_date = payload.targetDate;
 
-    return Response.json({ goal, justCompleted: isComplete && !wasComplete });
+    // Contributions read-modify-write saved_amount; matching on the value we
+    // read makes a concurrent contribution fail the update instead of being
+    // silently overwritten.
+    const row = must(
+      await supabase
+        .from("goals")
+        .update(updates)
+        .eq("id", goalId)
+        .eq("saved_amount", goal.saved_amount)
+        .select()
+        .maybeSingle(),
+    ) as GoalRow | null;
+    if (!row) return jsonError("This goal changed in the meantime. Refresh and try again.", 409);
+
+    await invalidateUsers([userId]);
+    return Response.json({ goal: toGoal(row), justCompleted: isComplete && !wasComplete });
   } catch (error) {
-    return handleError(error, "Failed to update goal");
+    return handleRouteError(error, "Failed to update goal");
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ goalId: string }> },
-) {
+export async function DELETE(_request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const { goalId } = await params;
+    if (!isUuid(goalId)) return jsonError("Goal not found", 404);
 
-    await connectToDatabase();
+    const deleted = must(
+      await supabase.from("goals").delete().eq("id", goalId).select("id"),
+    ) as Array<{ id: string }>;
+    if (!deleted.length) return jsonError("Goal not found", 404);
 
-    const deleted = await Goal.findOneAndDelete({
-      _id: toObjectId(goalId),
-      userId: toObjectId(userId),
-    });
-
-    if (!deleted) {
-      return jsonError("Goal not found", 404);
-    }
-
+    await invalidateUsers([userId]);
     return Response.json({ success: true });
   } catch (error) {
-    return handleError(error, "Failed to delete goal");
+    return handleRouteError(error, "Failed to delete goal");
   }
 }

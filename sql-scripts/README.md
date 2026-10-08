@@ -2,7 +2,7 @@
 
 These SQL files are for DBMS academic mapping only.
 
-Runtime database for Fee-Nance is MongoDB. These scripts mirror the same concepts in relational SQL form to satisfy course deliverables.
+> **Runtime database is now Supabase Postgres.** The live schema, row-level security and SQL functions are in `../supabase/migrations/`. These scripts predate that move: they were written to mirror the earlier MongoDB design in relational form for the course deliverables, and are kept as-is.
 
 ## Files
 - `01-ddl-schema.sql`: relational DDL equivalent of Mongo collections

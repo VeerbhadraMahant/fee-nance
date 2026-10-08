@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
-import { connectToDatabase } from "@/lib/db";
-import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Transaction } from "@/models/Transaction";
+import { toTransaction, type TransactionRow } from "@/lib/data/mappers";
+import { handleRouteError, must, optionalParam, selectAll } from "@/lib/route";
 
 const transactionSchema = z.object({
   type: z.enum(["income", "expense"]),
@@ -33,98 +32,66 @@ const transactionQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 
-function getOptionalParam(value: string | null) {
-  if (value === null || value.trim() === "") {
-    return undefined;
-  }
-
-  return value;
-}
+const SORT_COLUMNS = {
+  transactionDate: "transaction_date",
+  amount: "amount",
+  createdAt: "created_at",
+  title: "title",
+} as const;
 
 export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
-    await connectToDatabase();
+    const { supabase } = await requireUser();
 
     const { searchParams } = new URL(request.url);
-    const queryParams = transactionQuerySchema.parse({
-      startDate: getOptionalParam(searchParams.get("startDate")),
-      endDate: getOptionalParam(searchParams.get("endDate")),
-      type: getOptionalParam(searchParams.get("type")),
-      page: getOptionalParam(searchParams.get("page")),
-      limit: getOptionalParam(searchParams.get("limit")),
-      sortBy: getOptionalParam(searchParams.get("sortBy")),
-      sortOrder: getOptionalParam(searchParams.get("sortOrder")),
+    const q = transactionQuerySchema.parse({
+      startDate: optionalParam(searchParams.get("startDate")),
+      endDate: optionalParam(searchParams.get("endDate")),
+      type: optionalParam(searchParams.get("type")),
+      page: optionalParam(searchParams.get("page")),
+      limit: optionalParam(searchParams.get("limit")),
+      sortBy: optionalParam(searchParams.get("sortBy")),
+      sortOrder: optionalParam(searchParams.get("sortOrder")),
     });
 
-    const startDate = queryParams.startDate ? new Date(queryParams.startDate) : undefined;
-    const endDate = queryParams.endDate ? new Date(queryParams.endDate) : undefined;
-    const type = queryParams.type;
-    const shouldPaginate = queryParams.page !== undefined || queryParams.limit !== undefined;
-    const page = queryParams.page ?? 1;
-    const limit = queryParams.limit ?? 20;
-    const sortField = queryParams.sortBy ?? "transactionDate";
-    const sortDirection = queryParams.sortOrder === "asc" ? 1 : -1;
+    const shouldPaginate = q.page !== undefined || q.limit !== undefined;
+    const page = q.page ?? 1;
+    const limit = q.limit ?? 20;
 
-    const query: {
-      userId: ReturnType<typeof toObjectId>;
-      transactionDate?: { $gte?: Date; $lte?: Date };
-      type?: "income" | "expense";
-    } = {
-      userId: toObjectId(userId),
+    // RLS scopes every query here to the caller.
+    const build = (from: number, to: number) => {
+      let query = supabase.from("transactions").select("*", { count: "exact" });
+      if (q.startDate) query = query.gte("transaction_date", q.startDate);
+      if (q.endDate) query = query.lte("transaction_date", q.endDate);
+      if (q.type) query = query.eq("type", q.type);
+      return query
+        .order(SORT_COLUMNS[q.sortBy ?? "transactionDate"], { ascending: q.sortOrder === "asc" })
+        .order("id")
+        .range(from, to);
     };
 
-    if (startDate || endDate) {
-      query.transactionDate = {};
-      if (startDate) {
-        query.transactionDate.$gte = startDate;
-      }
-      if (endDate) {
-        query.transactionDate.$lte = endDate;
-      }
-    }
-
-    if (type === "income" || type === "expense") {
-      query.type = type;
-    }
-
-    const totalCountPromise = Transaction.countDocuments(query);
-
-    const findQuery = Transaction.find(query).sort({ [sortField]: sortDirection });
-
-    if (shouldPaginate) {
-      findQuery.skip((page - 1) * limit).limit(limit);
-    }
-
-    const transactionsPromise = findQuery.lean();
-
-    const summaryByTypePromise = Transaction.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: "$type",
-          total: { $sum: "$amount" },
-        },
-      },
+    const [listResult, totalsResult] = await Promise.all([
+      shouldPaginate
+        ? build((page - 1) * limit, page * limit - 1).then((result) => ({
+            rows: must(result) as TransactionRow[],
+            count: result.count,
+          }))
+        : selectAll<TransactionRow>(build).then((rows) => ({ rows, count: rows.length })),
+      supabase.rpc("ledger_type_totals", { p_start: q.startDate ?? null, p_end: q.endDate ?? null }),
     ]);
+    const rows = listResult.rows;
+    const totals = (must(totalsResult) ?? []) as Array<{ type: string; total: number }>;
 
-    const [totalCount, transactions, summaryByType] = await Promise.all([
-      totalCountPromise,
-      transactionsPromise,
-      summaryByTypePromise,
-    ]);
-
-    const summary = {
-      totalIncome: summaryByType.find((entry) => entry._id === "income")?.total ?? 0,
-      totalExpense: summaryByType.find((entry) => entry._id === "expense")?.total ?? 0,
-    };
+    // ledger_type_totals has no type filter; apply it here to match the list.
+    const totalOf = (type: string) =>
+      q.type && q.type !== type ? 0 : Number(totals.find((t) => t.type === type)?.total ?? 0);
+    const totalIncome = totalOf("income");
+    const totalExpense = totalOf("expense");
+    const totalCount = listResult.count ?? rows.length;
 
     return Response.json({
-      transactions,
-      summary: {
-        ...summary,
-        balance: summary.totalIncome - summary.totalExpense,
-      },
+      transactions: rows.map(toTransaction),
+      summary: { totalIncome, totalExpense, balance: totalIncome - totalExpense },
       pagination: shouldPaginate
         ? {
             page,
@@ -137,65 +104,46 @@ export async function GET(request: Request) {
         : null,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid transaction query", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to load transactions", 500);
+    return handleRouteError(error, "Failed to load transactions");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = transactionSchema.parse(await request.json());
 
     if (payload.recurring?.enabled && !payload.recurring.frequency) {
-      return jsonError("Recurring frequency is required", 422);
+      return Response.json({ error: "Recurring frequency is required" }, { status: 422 });
     }
 
-    await connectToDatabase();
+    const categoryId = await resolveAccessibleCategoryId(supabase, payload.categoryId);
+    const recurringEnabled = payload.recurring?.enabled ?? false;
 
-    const categoryId = await resolveAccessibleCategoryId(payload.categoryId, userId);
+    const row = must(
+      await supabase
+        .from("transactions")
+        .insert({
+          user_id: userId,
+          type: payload.type,
+          title: payload.title,
+          notes: payload.notes ?? null,
+          amount: payload.amount,
+          category_id: categoryId,
+          transaction_date: payload.transactionDate,
+          recurring_enabled: recurringEnabled,
+          recurring_frequency: payload.recurring?.frequency ?? null,
+          recurring_next_run_at: recurringEnabled
+            ? (payload.recurring?.nextRunAt ?? payload.transactionDate)
+            : null,
+        })
+        .select()
+        .single(),
+    ) as TransactionRow;
 
-    const transaction = await Transaction.create({
-      userId: toObjectId(userId),
-      type: payload.type,
-      title: payload.title,
-      notes: payload.notes,
-      amount: payload.amount,
-      currency: "INR",
-      categoryId,
-      transactionDate: new Date(payload.transactionDate),
-      recurring: payload.recurring
-        ? {
-            enabled: payload.recurring.enabled,
-            frequency: payload.recurring.frequency,
-            nextRunAt: payload.recurring.nextRunAt
-              ? new Date(payload.recurring.nextRunAt)
-              : new Date(payload.transactionDate),
-          }
-        : {
-            enabled: false,
-          },
-    });
-
-    return Response.json({ transaction }, { status: 201 });
+    await invalidateUsers([userId]);
+    return Response.json({ transaction: toTransaction(row) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid transaction input", 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to create transaction", 500);
+    return handleRouteError(error, "Failed to create transaction");
   }
 }

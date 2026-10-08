@@ -2,7 +2,7 @@
 
 Most people track personal spending in one app and split group bills in another, so neither view is complete. Fee-Nance puts both in one place: personal income, expenses and budgets alongside shared group expenses and settlements, over a single account and a single set of categories.
 
-Built with Next.js 16 (App Router), MongoDB and Mongoose. Currency is INR only.
+Built with Next.js 16 (App Router) on Supabase: Postgres with row-level security, Supabase Auth with Google sign-in, and an optional Redis cache. Next.js is the only server. Currency is INR only.
 
 ## Status
 
@@ -12,27 +12,28 @@ This is coursework, actively being refactored. What exists today works end to en
 
 ```
 src/app/(app)/*          React Server Components — the authenticated shell
-src/app/api/private/*    Route handlers: auth guard → Zod validation → Mongoose → JSON
+src/app/api/private/*    Route handlers: auth → Zod validation → Supabase (as the user) → JSON
+src/app/auth/*           Google OAuth callback and sign-out
+src/lib/supabase/*       Server and browser Supabase clients (@supabase/ssr)
+src/lib/data/*           Row → API-shape mappers and shared group queries
+src/lib/cache.ts         Redis read-through cache with per-user versioned invalidation
 src/lib/*                Pure helpers: split allocation, money rounding, forecasting,
-                         recurrence stepping, access checks
-src/lib/receipt/*        The OCR boundary — an interface and a registry, no vendor
-src/models/*             Mongoose schemas (7 collections)
-middleware.ts            Session gate over /dashboard, /finance, /groups, /analytics,
-                         /insights, /profile and /api/private
+                         recurrence, health score, tax, goals, recurring detection
+src/proxy.ts             Session refresh + sign-in gate for every page and /api/private
+supabase/migrations/*    The schema, row-level security policies and SQL functions
 ```
 
-Data flows one way: a client component calls a `/api/private` route, the handler resolves the session user, validates input with Zod, scopes the query to that user (or to a group they belong to), and returns plain JSON. Aggregation for the dashboards runs as MongoDB pipelines where possible; group balance folding currently happens in memory.
+Data flows one way: a client component calls a `/api/private` route; the handler verifies the session JWT, validates input with Zod, and queries Supabase **as that user**, so row-level security in Postgres decides what they can read or write. Aggregations (totals, budget spend, the insights window functions) run as SQL functions in the database; writes that touch several tables (a group expense with its payers and splits) run as one SQL transaction. Results go back as plain JSON in the same shape the frontend has always used.
 
-There is deliberately **no service layer yet** — business logic lives in the route handlers, with `lib/split.ts` and `lib/money.ts` as shared pure functions. Introducing one is Phase 5 of the backlog.
+Read-heavy routes (dashboard, analytics, insights, health, report, tax, group analytics) are cached in Redis when it's configured. Every write bumps the affected users' cache version, so a cached answer is never served after a change to the data it was computed from.
 
 ### Authorization model
 
-Two independent layers:
+Three layers, from convenience to guarantee:
 
-1. **`middleware.ts`** proves a session exists for protected paths. It performs no authorization beyond that and is never relied on for ownership.
-2. **Every handler re-checks access itself.** Personal resources (transactions, budgets, categories, profile) are queried with `userId` in the filter, so a foreign id simply returns 404. Group resources load the group and assert the session user is a current member before any read or write; payers and split participants are validated as members at write time.
-
-Known gaps, tracked as Phase 2 of the backlog: group and category routes return **403** rather than 404 for inaccessible ids (which leaks their existence), membership is checked after fetching rather than in the query, the guard block is copy-pasted across six group routes, and path parameters are validated by ObjectId parsing rather than by Zod.
+1. **`src/proxy.ts`** refreshes the Supabase session on every request and sends signed-out visitors to `/login` (pages) or answers `401` (API). It is a convenience gate, never relied on for ownership.
+2. **Every route handler** resolves the user itself with `supabase.auth.getClaims()`, which verifies the JWT rather than trusting the cookie.
+3. **Row-level security** in Postgres is the real boundary. Personal tables (transactions, budgets, goals, categories) are visible only to their owner. Group tables are visible only to members, checked by a `SECURITY DEFINER` helper so the policy can't recurse. Someone else's id therefore comes back as `404`, the same as an id that doesn't exist. Creating, joining and leaving groups and adding group expenses go through SQL functions that check membership and that the parts sum to the total before writing anything.
 
 ### Split allocation
 
@@ -55,8 +56,8 @@ All four compare sums with exact equality *after* rounding to 2 dp, not with an 
 - TypeScript
 - Tailwind CSS 4, Radix UI primitives, `next-themes`, `sonner`
 - Recharts, plus a hand-rolled Sankey layout in the analytics suite
-- NextAuth v4 (credentials + optional Google OAuth)
-- MongoDB Atlas + Mongoose 9
+- Supabase: Postgres 15+ with row-level security, Supabase Auth (Google OAuth), `@supabase/ssr`
+- Upstash Redis (optional cache)
 - Zod 4
 
 ## Features
@@ -86,8 +87,10 @@ All four compare sums with exact equality *after* rounding to 2 dp, not with an 
 - Duplicate charge detection: the same amount and description inside 48 hours
 - Category drift against each category's own three-month average
 
-All four are MongoDB `$setWindowFields` pipelines and are documented, with the
-index each one rides, in `docs/insights-pipelines.md`. **Requires MongoDB 5.0+.**
+Outliers, duplicates and drift are Postgres window functions
+(`insights_outliers`, `insights_duplicates`, `insights_drift` in
+`supabase/migrations/`), ported from the original MongoDB `$setWindowFields`
+pipelines with the same windows and thresholds.
 
 ### Planning (ported from HackMatrix / FinPilot)
 - **Financial health score** (dashboard and monthly report): five weighted
@@ -124,87 +127,80 @@ index each one rides, in `docs/insights-pipelines.md`. **Requires MongoDB 5.0+.*
 - Settlement flow Sankey with proportional per-node flow sizing
 
 ### Auth
-- Email/password registration and login (bcrypt, JWT sessions)
-- Google OAuth, enabled only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set
-- Protected app shell and private API routes
+- Google sign-in only, through Supabase Auth. The same button signs up and signs in
+- A `profiles` row is created by a database trigger on first sign-in, from the Google name, email and avatar
+- Protected app shell and private API routes; sessions refresh automatically in `src/proxy.ts`
 
 ## Setup and Run
 
-1. Install dependencies
+### 1. Supabase project
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Apply the schema: either paste `supabase/migrations/*.sql` into the SQL editor **in filename order**, or with the Supabase CLI run `supabase link` then `supabase db push`.
+3. **Google sign-in.** In Google Cloud Console create an OAuth client (type *Web application*) and add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorised redirect URI. In Supabase go to *Authentication → Sign In / Providers → Google*, enable it, and paste the client ID and secret.
+4. In *Authentication → URL Configuration* set the Site URL to your app URL and add `http://localhost:3000/**` (and your deployed URL with `/**`) to the redirect allow-list.
+
+### 2. Environment
+
+```bash
+cp .env.example .env.local
+```
+
+| Variable | Required | What it is |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | Project URL (*Project Settings → API*) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | The anon / publishable key. Public by design; row-level security protects the data |
+| `SUPABASE_SERVICE_ROLE_KEY` | seed only | Bypasses RLS. Used by `npm run seed:demo` only, never by the app. Keep it out of the browser and out of git |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | no | Upstash Redis for the cache. Leave both unset to run without a cache |
+| `RECEIPT_EXTRACTOR` | no | Selects an OCR implementation from `src/lib/receipt/registry.ts`; unset or `none` disables receipt scanning |
+| `LOG_LEVEL` | no | `debug`, `info`, `warn` or `error` |
+
+Google's client ID and secret live in the Supabase dashboard, not in this app's environment.
+
+### 3. Run
 
 ```bash
 npm install
+npm run dev            # http://localhost:3000
 ```
 
-2. Create a local env file
+Sign in with Google once, then optionally fill your account with a year of demo data:
 
 ```bash
-cp .env.example .env
+npm run seed:demo -- you@gmail.com
 ```
-
-3. Fill the required variables in `.env`
-- `MONGODB_URI`
-- `NEXTAUTH_URL` (usually `http://localhost:3000`)
-- `NEXTAUTH_SECRET`
-- `GOOGLE_CLIENT_ID` (optional)
-- `GOOGLE_CLIENT_SECRET` (optional)
-- `RECEIPT_EXTRACTOR` (optional) — selects an OCR implementation from `src/lib/receipt/registry.ts`; unset or `none` disables receipt scanning
-- `LOG_LEVEL` (optional)
-
-`MONGODB_URI` must point at **MongoDB 5.0 or newer** — `/insights` uses `$setWindowFields`. Every other page works on older servers.
-
-4. Seed demo data
-
-```bash
-npm run seed
-```
-
-5. Run in development
-
-```bash
-npm run dev
-```
-
-6. Open `http://localhost:3000`
 
 ## Scripts
 
-- `npm run dev` — start the development server
-- `npm run build` — production build
-- `npm run start` — run the production build
-- `npm run lint` — lint
-- `npm run format` — lint with `--fix`
-- `npm run seed` — seed demo data
-- `npm run verify:calc` — check the split allocation and forecast arithmetic (no database needed)
-- `npm run dbms:report` — regenerate `docs/dbms-report-output.json`
-
-There is no test runner yet; adding Vitest is Phase 4 of the backlog.
-`npm run verify:calc` is a stopgap covering the two pure money modules —
-itemized split allocation and the cash-flow forecast — and is what should
-migrate into Vitest first.
+- `npm run dev` / `build` / `start` — Next.js
+- `npm run lint`, `npm run format` — ESLint (with `--fix`)
+- `npm run verify:calc` — the pure money modules: split allocation, forecast, tax, health score, goals, recurring detection, plus route error mapping. No database needed
+- `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function and the group invariants. No Supabase project needed
 
 ## Routes
 
 | Path | Purpose |
 |---|---|
 | `/` | Landing page |
-| `/login`, `/register` | Authentication |
+| `/login` | Google sign-in |
+| `/auth/callback`, `/auth/signout` | OAuth return and sign-out |
 | `/dashboard` | Balance, trends, recent activity |
 | `/finance` | Transactions, budgets, categories |
 | `/groups`, `/groups/[groupId]` | Group list and group workspace |
 | `/analytics` | Deeper breakdowns and trajectory |
-| `/insights` | Cash-flow forecast, unusual spending, duplicate charges |
+| `/insights` | Cash-flow forecast, unusual spending, duplicate charges, unruled subscriptions |
+| `/goals`, `/tax`, `/report` | Savings goals, tax planner, printable monthly report |
 | `/profile` | Account details and preferences (reached from the account menu) |
 
 Private APIs live under `/api/private/*`. They are enumerated in `docs/private-api-reference.md`.
 
 ## Demo Seed Data
 
-`npm run seed` creates nine users, system categories, a year of transactions, budgets, groups, group expenses and settlements. Password is `Demo@1234` for every account:
-
-`alex@` · `riya@` · `kabir@` · `priya@` · `arjun@` · `nisha@` · `dev@` · `sneha@` · `rahul@` — all `@feenance.demo`
+`npm run seed:demo -- <email>` fills an account that has already signed in with a year of salary, rent, groceries, subscriptions, a duplicate charge, budgets, three goals, and a "Hostel Squad" group shared with two demo friends (`aditi.rao@feenance.demo`, `karan.verma@feenance.demo`, created in Supabase Auth; they can't sign in). It refuses to touch an account that already has data unless you pass `--reset`.
 
 ## Documentation Index
+
+> The schema of record is now `supabase/migrations/`. Documents under `docs/` that describe MongoDB collections, aggregation pipelines or Mongo-to-relational mappings describe the design before the move to Supabase, and are kept as coursework history.
 
 Overview:
 - `docs/what-is-fee-nance.md` — what the project is and who it is for
@@ -233,233 +229,30 @@ Phase 0 audit (read-only findings that drive the backlog):
 
 ## Known limitations
 
-Confirmed by the Phase 0 audit, not speculation:
-
-- **Money is stored as floating-point rupees.** Correctness depends on `roundCurrency` being called after every operation, and `balances`/`analytics` still use epsilon thresholds where `split.ts` uses exact-after-round equality. Migrating to integer minor units behind a `Money` value object is Phase 1. Itemized splitting raises the stakes here: it performs dozens of divisions per bill where the other strategies perform one. It contains the risk locally by working in integer paise, which is an argument for doing the same everywhere rather than a substitute for it.
-- **The forecast double-counts recurring expenses approximately.** Generated occurrences carry no reference to the rule that produced them, so the projection subtracts each rule's rate from the discretionary rate instead of excluding the occurrences by id. Exact over a long window, approximate over a short one; fixed properly by backlog item F8. Detailed in `docs/insights-pipelines.md`.
+- **Money is `numeric(15,2)` in Postgres but `number` in TypeScript.** Storage is exact; arithmetic in the app still relies on `roundCurrency` after every operation. Moving the app to integer paise behind a `Money` value object is still Phase 1. Itemized splitting already works in integer paise internally.
+- **The forecast double-counts recurring expenses approximately.** Generated occurrences carry no reference to the rule that produced them, so the projection subtracts each rule's rate from the discretionary rate instead of excluding the occurrences by id. Exact over a long window, approximate over a short one; backlog item F8.
 - **Percentage splits have no explicit remainder rule.** They reject inputs whose rounded shares miss the total instead of allocating the residual.
-- **No test runner.** `npm run verify:calc` covers itemized split allocation and the forecast, but the rest of the money math is unverified by anything except manual QA.
-- **No service layer.** Route handlers mix validation, business logic and persistence.
-- **Missing endpoints.** Group expenses and settlements cannot be edited or deleted, and there is no member-removal or leave-group route.
-- **Categories hard-delete.** Transactions and budgets referencing a deleted category are left with a dangling `categoryId` and render as "Uncategorized".
-- **Invite codes use `Math.random()`**, not a cryptographic source.
-- **`403` on inaccessible group and category ids** allows id enumeration.
+- **No test runner.** `verify:calc` and `verify:db` are standing checks, not a Vitest suite.
+- **Missing endpoints.** Group expenses and settlements can't be edited or deleted.
+- **Invite codes use Postgres `random()`**, not a cryptographic source. They are 8 characters from a 32-letter alphabet and only grant membership of one group.
+- **Redis invalidation is per user.** A write bumps the version of everyone it affects (all members, for group writes); entries otherwise expire after 5 minutes.
 
 ---
 
-## Data Modelling
+## Data Model
 
-Fee-Nance stores data as MongoDB documents with Mongoose schemas, modelled to map cleanly onto a normalised relational schema for the DBMS coursework.
+The schema lives in `supabase/migrations/20261008000001_schema.sql`; the functions in `…000002_functions.sql`.
 
-### Collections
-
-| Collection | Purpose |
-|---|---|
-| `users` | Account holder identity, preferences, OAuth linkage |
-| `categories` | System-wide and user-defined income/expense categories |
-| `transactions` | Individual income and expense entries with optional recurrence |
-| `budgets` | Spending limits bound to a user, optional category, and date range |
-| `groups` | Shared expense groups with member roles and invite codes |
-| `groupexpenses` | Multi-payer group expense records with split breakdowns |
-| `settlements` | Manual debt settlement entries between group members |
-
-### Key relationships
-
-- `transactions.userId` → `users._id`
-- `transactions.categoryId` → `categories._id`
-- `budgets.userId` → `users._id`
-- `budgets.categoryId` → `categories._id` (optional)
-- `groups.members[].userId` → `users._id`
-- `groupexpenses.groupId` → `groups._id`
-- `groupexpenses.paidBy[].userId` → `users._id`
-- `groupexpenses.splits[].userId` → `users._id`
-- `settlements.groupId` → `groups._id`
-- `settlements.fromUserId` / `toUserId` → `users._id`
-
-### Indexes
-
-| Collection | Index | Serves |
+| Table | Holds | Key constraints |
 |---|---|---|
-| `users` | `email` unique, `googleId` | Login lookup, OAuth linking |
-| `categories` | `{userId, name, type}` unique sparse, `isSystem` | Duplicate prevention, category list |
-| `transactions` | `{userId, transactionDate}`, `{userId, type, transactionDate}`, `{userId, categoryId, transactionDate}` | Date-range list, summary aggregation, category breakdown |
-| `budgets` | `{userId, cycle, periodStart}` | Active budget lookup per cycle |
-| `groups` | `inviteCode` unique, `members.userId` | Join by code, "my groups" |
-| `groupexpenses` | `{groupId, incurredAt}`, `createdBy`, `splitType` | Group expense timeline |
-| `settlements` | `{groupId, settledAt}`, `{groupId, createdBy, idempotencyKey}` unique partial | Settlement history, duplicate suppression |
+| `profiles` | One row per auth user: name, email, avatar, preferences | PK = `auth.users.id`, created by trigger |
+| `categories` | 7 shared system categories plus each user's own | unique `(user_id, name, type)` with `NULLS NOT DISTINCT` |
+| `transactions` | Income and expenses, with an optional recurring rule | `amount > 0`; category `ON DELETE SET NULL` |
+| `budgets` | Spending limits over a period, optionally for one category | `period_end > period_start` |
+| `goals` | Savings targets and progress | `saved_amount >= 0` |
+| `groups`, `group_members` | Shared ledgers and who's in them | PK `(group_id, user_id)`; role `owner`/`member` |
+| `group_expenses` | A shared bill; itemized line items as `jsonb` provenance | cascades from `groups` |
+| `group_expense_payers`, `group_expense_splits` | Who paid and who owes what, per expense | PK `(expense_id, user_id)`; sums checked by `create_group_expense` |
+| `settlements` | Repayments between members | `from <> to`; unique `(group_id, created_by, idempotency_key)` |
 
----
-
-## Data Dictionary
-
-### users
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | Auto-generated primary key |
-| `email` | String | ✓ | Unique, lowercase, indexed |
-| `name` | String | ✓ | Display name |
-| `passwordHash` | String | — | bcrypt hash; absent for OAuth-only accounts |
-| `image` | String | — | Avatar URL |
-| `googleId` | String | — | Linked Google OAuth ID |
-| `preferences.currency` | String | — | Default `"INR"` |
-| `preferences.dashboardDefaultRange` | String | — | `thisMonth` \| `last30Days` \| `thisYear` |
-| `createdAt` / `updatedAt` | Date | ✓ | Mongoose timestamps |
-
-### categories
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `userId` | ObjectId | — | Null for system categories |
-| `name` | String | ✓ | e.g. `"Salary"`, `"Food"` |
-| `type` | String | ✓ | `"income"` \| `"expense"` |
-| `icon` | String | — | Icon identifier |
-| `color` | String | — | Hex colour |
-| `isSystem` | Boolean | ✓ | True for built-in categories |
-
-### transactions
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `userId` | ObjectId | ✓ | FK → users |
-| `type` | String | ✓ | `"income"` \| `"expense"` |
-| `title` | String | ✓ | Short description |
-| `notes` | String | — | Free-text notes |
-| `amount` | Number | ✓ | Non-negative, in rupees (float — see Known limitations) |
-| `currency` | String | ✓ | `"INR"` |
-| `categoryId` | ObjectId | — | FK → categories |
-| `transactionDate` | Date | ✓ | When the transaction occurred |
-| `recurring.enabled` | Boolean | ✓ | Whether recurrence is active |
-| `recurring.frequency` | String | — | `"monthly"` \| `"yearly"` |
-| `recurring.nextRunAt` | Date | — | Next scheduled occurrence; read by the recurring runner |
-
-### budgets
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `userId` | ObjectId | ✓ | FK → users |
-| `name` | String | ✓ | Budget label |
-| `amount` | Number | ✓ | Spending limit |
-| `currency` | String | ✓ | `"INR"` |
-| `cycle` | String | ✓ | `"monthly"` \| `"quarterly"` \| `"yearly"` |
-| `categoryId` | ObjectId | — | FK → categories (scoped budget) |
-| `periodStart` | Date | ✓ | Budget window start |
-| `periodEnd` | Date | ✓ | Budget window end |
-
-### groups
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `name` | String | ✓ | Group display name |
-| `createdBy` | ObjectId | ✓ | FK → users |
-| `inviteCode` | String | ✓ | Unique 8-char join code |
-| `members[].userId` | ObjectId | ✓ | FK → users |
-| `members[].role` | String | ✓ | `"owner"` \| `"member"` |
-| `members[].joinedAt` | Date | ✓ | Membership timestamp |
-
-### groupexpenses
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `groupId` | ObjectId | ✓ | FK → groups |
-| `createdBy` | ObjectId | ✓ | FK → users |
-| `title` | String | ✓ | Expense description |
-| `notes` | String | — | Optional detail |
-| `amount` | Number | ✓ | Total expense amount |
-| `currency` | String | ✓ | `"INR"` |
-| `splitType` | String | ✓ | `"equal"` \| `"custom"` \| `"percentage"` \| `"itemized"` |
-| `paidBy[].userId` | ObjectId | ✓ | Who paid |
-| `paidBy[].amount` | Number | ✓ | How much they paid |
-| `splits[].userId` | ObjectId | ✓ | Each member's share |
-| `splits[].amount` | Number | — | Raw input for custom splits; provenance only |
-| `splits[].percentage` | Number | — | Raw input for percentage splits; provenance only |
-| `splits[].shareAmount` | Number | ✓ | Computed owed amount — the source of truth |
-| `lineItems[].label` | String | — | Itemized splits only; one line of the bill |
-| `lineItems[].amount` | Number | — | Price of that line |
-| `lineItems[].sharedBy` | ObjectId[] | — | Members who shared that line |
-| `lineItems[].proportional` | Boolean | — | Tax/tip: spread by subtotal, not evenly |
-| `extraction.source` | String | — | Which OCR extractor produced the line items |
-| `extraction.confidence` | Number | — | Extractor-reported confidence, if any |
-| `extraction.extractedAt` | Date | — | When extraction ran |
-| `incurredAt` | Date | ✓ | When the expense occurred |
-
-`lineItems` is provenance, exactly like `splits[].amount` and `splits[].percentage` — `splits[].shareAmount` remains the only field balances are computed from.
-
-### settlements
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `_id` | ObjectId | ✓ | |
-| `groupId` | ObjectId | ✓ | FK → groups |
-| `fromUserId` | ObjectId | ✓ | Payer, FK → users |
-| `toUserId` | ObjectId | ✓ | Receiver, FK → users |
-| `amount` | Number | ✓ | Amount settled |
-| `currency` | String | ✓ | `"INR"` |
-| `note` | String | — | Optional note |
-| `settledAt` | Date | ✓ | Settlement timestamp |
-| `createdBy` | ObjectId | ✓ | FK → users |
-| `idempotencyKey` | String | — | Optional; unique per `(groupId, createdBy)` when present |
-
----
-
-## Relational Database Design
-
-The SQL equivalents below show how the document model maps to a normalised relational schema. Full DDL, DML and query scripts are in `sql-scripts/` — they are documentation artifacts, not runtime migrations.
-
-### Equivalent relational schema (normalised to 3NF)
-
-```sql
--- Core identity
-Users          (user_id PK, email UNIQUE, name, password_hash, image, google_id, currency, dashboard_range, created_at, updated_at)
-
--- Reference data
-Categories     (category_id PK, user_id FK NULLABLE, name, type, icon, color, is_system)
-
--- Personal finance
-Transactions   (transaction_id PK, user_id FK, type, title, notes, amount, currency, category_id FK NULLABLE,
-                transaction_date, recurring_enabled, recurring_frequency, recurring_next_run)
-Budgets        (budget_id PK, user_id FK, name, amount, currency, cycle, category_id FK NULLABLE, period_start, period_end)
-
--- Group finance
-Groups         (group_id PK, name, created_by FK, invite_code UNIQUE)
-GroupMembers   (group_id FK, user_id FK, role, joined_at)         -- junction table
-GroupExpenses  (expense_id PK, group_id FK, created_by FK, title, notes, amount, currency, split_type, incurred_at)
-ExpensePaidBy  (expense_id FK, user_id FK, amount)                -- junction table
-ExpenseSplits  (expense_id FK, user_id FK, share_amount, percentage NULLABLE)  -- junction table
-Settlements    (settlement_id PK, group_id FK, from_user_id FK, to_user_id FK, amount, currency, note, settled_at, created_by FK)
-```
-
-### Normalisation notes
-
-- **1NF** — All fields are atomic; repeating groups (`members`, `paidBy`, `splits`) are extracted into separate junction tables.
-- **2NF** — Every non-key attribute in each table depends on the whole primary key; junction tables carry only relationship-specific attributes.
-- **3NF** — No transitive dependencies; currency and user preferences are stored only on `Users`, not repeated across child tables.
-
-### Referential integrity constraints
-
-| Table | Foreign Key | References |
-|---|---|---|
-| `categories` | `user_id` | `users` (NULL = system category) |
-| `transactions` | `user_id` | `users` |
-| `transactions` | `category_id` | `categories` |
-| `budgets` | `user_id` | `users` |
-| `budgets` | `category_id` | `categories` |
-| `groups` | `created_by` | `users` |
-| `groupmembers` | `group_id`, `user_id` | `groups`, `users` |
-| `groupexpenses` | `group_id`, `created_by` | `groups`, `users` |
-| `expensepaidby` | `expense_id`, `user_id` | `groupexpenses`, `users` |
-| `expensesplits` | `expense_id`, `user_id` | `groupexpenses`, `users` |
-| `settlements` | `group_id`, `from_user_id`, `to_user_id`, `created_by` | `groups`, `users` |
-
-MongoDB does not enforce these at the storage layer; they are upheld in application code, which is why the dangling-`categoryId` case listed under Known limitations is possible.
-
-See `docs/relational-mapping.md` for the column-by-column comparison and `docs/er-diagram.md` for the ER diagram.
-
-## DBMS Deliverables
-
-- `sql-scripts/` — DDL, DML, joins, subqueries, GROUP BY / HAVING, trigger and procedure equivalents
-- `docs/DBMS.md`
-- `docs/dbms-query-mapping.md`
-- `docs/mongo-relational-equivalents.md`
-- `docs/viva-notes-mongodb-vs-relational.md`
-- `docs/dbms-report-output.json` — regenerate with `npm run dbms:report`
-
-## Made By : Ved Jadhav, Veerbhadra Mahant, Rehaan Shaikh
+Every table has row-level security enabled; the policies are in the same migration file.

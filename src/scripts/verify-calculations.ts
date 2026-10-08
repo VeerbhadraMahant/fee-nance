@@ -16,6 +16,8 @@ import { compareRegimes, computeNewRegime, computeOldRegime, EMPTY_DEDUCTIONS } 
 import { computeHealthScore } from "../lib/health-score";
 import { projectGoal } from "../lib/goals";
 import { detectRecurring } from "../lib/recurring-detect";
+import { DbQueryError, handleRouteError, HttpError } from "../lib/route";
+import { safeNextPath } from "../lib/safe-redirect";
 
 let failures = 0;
 
@@ -346,6 +348,30 @@ console.log("\nRecurring detection");
     "a lone music service is not flagged",
     found.find((f) => f.key === "spotify")?.overlapGroup === null,
   );
+}
+
+console.log("\nRoute error mapping (database errors → HTTP)");
+{
+  const status = (error: unknown) => handleRouteError(error, "boom").status;
+  check("UNAUTHORIZED → 401", status(new Error("UNAUTHORIZED")) === 401);
+  check("HttpError keeps its status", status(new HttpError(422, "Category not found")) === 422);
+  check("unique violation → 409", status(new DbQueryError({ code: "23505", message: "dup" })) === 409);
+  check("malformed uuid → 404", status(new DbQueryError({ code: "22P02", message: "bad uuid" })) === 404);
+  check("invalid invite code → 404", status(new DbQueryError({ code: "P0001", message: "invalid_invite_code" })) === 404);
+  check("group_not_found → 404", status(new DbQueryError({ code: "P0001", message: "group_not_found" })) === 404);
+  check("other raised message → 422", status(new DbQueryError({ code: "P0001", message: "Payer amounts must add up" })) === 422);
+  check("check violation → 422", status(new DbQueryError({ code: "23514", message: "check" })) === 422);
+  console.log("  (the JSON error line below is the expected log for an unmapped error)");
+  check("anything else → 500", status(new DbQueryError({ code: "08006", message: "connection" })) === 500);
+}
+
+console.log("\nPost-login redirect guard");
+{
+  check("relative path kept", safeNextPath("/groups/abc?x=1") === "/groups/abc?x=1");
+  check("absolute URL rejected", safeNextPath("https://evil.com") === "/dashboard");
+  check("protocol-relative rejected", safeNextPath("//evil.com") === "/dashboard");
+  check("backslash trick rejected", safeNextPath("/\\evil.com") === "/dashboard");
+  check("missing → fallback", safeNextPath(null) === "/dashboard");
 }
 
 console.log(

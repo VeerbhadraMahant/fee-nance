@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
-import { connectToDatabase } from "@/lib/db";
+import { toTransaction, type TransactionRow } from "@/lib/data/mappers";
 import { jsonError } from "@/lib/http";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Transaction } from "@/models/Transaction";
+import { handleRouteError, isUuid, must } from "@/lib/route";
 
 const updateTransactionSchema = z.object({
   type: z.enum(["income", "expense"]).optional(),
@@ -23,106 +23,63 @@ const updateTransactionSchema = z.object({
     .optional(),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ transactionId: string }> },
-) {
+type Params = { params: Promise<{ transactionId: string }> };
+
+export async function PATCH(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = updateTransactionSchema.parse(await request.json());
     const { transactionId } = await params;
-
-    await connectToDatabase();
-
-    const transaction = await Transaction.findOne({
-      _id: toObjectId(transactionId),
-      userId: toObjectId(userId),
-    });
-
-    if (!transaction) {
-      return jsonError("Transaction not found", 404);
-    }
+    if (!isUuid(transactionId)) return jsonError("Transaction not found", 404);
 
     if (payload.recurring?.enabled && !payload.recurring.frequency) {
       return jsonError("Recurring frequency is required", 422);
     }
 
-    if (payload.type) {
-      transaction.type = payload.type;
-    }
-    if (payload.title) {
-      transaction.title = payload.title;
-    }
-    if (payload.notes !== undefined) {
-      transaction.notes = payload.notes;
-    }
-    if (payload.amount) {
-      transaction.amount = payload.amount;
-    }
+    const updates: Record<string, unknown> = {};
+    if (payload.type) updates.type = payload.type;
+    if (payload.title) updates.title = payload.title;
+    if (payload.notes !== undefined) updates.notes = payload.notes;
+    if (payload.amount) updates.amount = payload.amount;
+    if (payload.transactionDate) updates.transaction_date = payload.transactionDate;
     if (payload.categoryId !== undefined) {
-      const categoryId = await resolveAccessibleCategoryId(payload.categoryId, userId);
-      transaction.categoryId = categoryId;
-    }
-    if (payload.transactionDate) {
-      transaction.transactionDate = new Date(payload.transactionDate);
+      updates.category_id = await resolveAccessibleCategoryId(supabase, payload.categoryId);
     }
     if (payload.recurring) {
-      transaction.recurring = {
-        enabled: payload.recurring.enabled,
-        frequency: payload.recurring.frequency,
-        nextRunAt: payload.recurring.nextRunAt
-          ? new Date(payload.recurring.nextRunAt)
-          : undefined,
-      };
+      updates.recurring_enabled = payload.recurring.enabled;
+      updates.recurring_frequency = payload.recurring.frequency ?? null;
+      updates.recurring_next_run_at = payload.recurring.nextRunAt ?? null;
     }
 
-    await transaction.save();
+    // RLS turns someone else's id into zero rows, which is a 404 here.
+    const row = must(
+      await supabase.from("transactions").update(updates).eq("id", transactionId).select().maybeSingle(),
+    ) as TransactionRow | null;
+    if (!row) return jsonError("Transaction not found", 404);
 
-    return Response.json({ transaction });
+    await invalidateUsers([userId]);
+    return Response.json({ transaction: toTransaction(row) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid transaction update", 422);
-    }
-
-    if (error instanceof Error) {
-      return jsonError(error.message, 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to update transaction", 500);
+    return handleRouteError(error, "Failed to update transaction", {
+      notFoundMessage: "Transaction not found",
+    });
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ transactionId: string }> },
-) {
+export async function DELETE(_request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const { transactionId } = await params;
+    if (!isUuid(transactionId)) return jsonError("Transaction not found", 404);
 
-    await connectToDatabase();
+    const deleted = must(
+      await supabase.from("transactions").delete().eq("id", transactionId).select("id"),
+    ) as Array<{ id: string }>;
+    if (!deleted.length) return jsonError("Transaction not found", 404);
 
-    const deleted = await Transaction.findOneAndDelete({
-      _id: toObjectId(transactionId),
-      userId: toObjectId(userId),
-    });
-
-    if (!deleted) {
-      return jsonError("Transaction not found", 404);
-    }
-
+    await invalidateUsers([userId]);
     return Response.json({ success: true });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to delete transaction", 500);
+    return handleRouteError(error, "Failed to delete transaction");
   }
 }

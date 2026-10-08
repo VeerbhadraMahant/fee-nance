@@ -1,13 +1,10 @@
 import { z } from "zod";
-import { requireUserId } from "@/lib/api-auth";
-import { connectToDatabase } from "@/lib/db";
+
+import { requireUser } from "@/lib/api-auth";
+import { invalidateUsers } from "@/lib/cache";
+import { toCategory, type CategoryRow } from "@/lib/data/mappers";
 import { jsonError } from "@/lib/http";
-import { isMongoDuplicateKeyError } from "@/lib/mongo-errors";
-import { toObjectId } from "@/lib/object-id";
-import { logger } from "@/lib/logger";
-import { Budget } from "@/models/Budget";
-import { Category } from "@/models/Category";
-import { Transaction } from "@/models/Transaction";
+import { handleRouteError, isUuid, must } from "@/lib/route";
 
 const updateCategorySchema = z
   .object({
@@ -22,127 +19,74 @@ const updateCategorySchema = z
       value.type !== undefined ||
       value.icon !== undefined ||
       value.color !== undefined,
-    {
-      message: "At least one field is required",
-    },
+    { message: "At least one field is required" },
   );
 
-function canManageCategory(category: { isSystem: boolean; userId?: { toString(): string } }, userId: string) {
-  if (category.isSystem) {
-    return false;
-  }
+type Params = { params: Promise<{ categoryId: string }> };
 
-  return category.userId?.toString() === userId;
+/**
+ * Tells "you can't touch this" (a system category, visible but read-only)
+ * apart from "no such category" (missing, or someone else's — RLS hides it).
+ */
+async function loadCategory(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  categoryId: string,
+) {
+  if (!isUuid(categoryId)) return null;
+  return must(
+    await supabase.from("categories").select("*").eq("id", categoryId).maybeSingle(),
+  ) as CategoryRow | null;
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ categoryId: string }> },
-) {
+export async function PATCH(request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const payload = updateCategorySchema.parse(await request.json());
     const { categoryId } = await params;
 
-    await connectToDatabase();
+    const category = await loadCategory(supabase, categoryId);
+    if (!category) return jsonError("Category not found", 404);
+    if (category.is_system) return jsonError("Cannot edit system or external category", 403);
 
-    const category = await Category.findById(toObjectId(categoryId));
+    const row = must(
+      await supabase
+        .from("categories")
+        .update({
+          ...(payload.name !== undefined && { name: payload.name }),
+          ...(payload.type !== undefined && { type: payload.type }),
+          ...(payload.icon !== undefined && { icon: payload.icon }),
+          ...(payload.color !== undefined && { color: payload.color }),
+        })
+        .eq("id", categoryId)
+        .select()
+        .single(),
+    ) as CategoryRow;
 
-    if (!category) {
-      return jsonError("Category not found", 404);
-    }
-
-    if (!canManageCategory(category, userId)) {
-      return jsonError("Cannot edit system or external category", 403);
-    }
-
-    if (payload.name !== undefined) {
-      category.name = payload.name;
-    }
-
-    if (payload.type !== undefined) {
-      category.type = payload.type;
-    }
-
-    if (payload.icon !== undefined) {
-      category.icon = payload.icon;
-    }
-
-    if (payload.color !== undefined) {
-      category.color = payload.color;
-    }
-
-    await category.save();
-
-    return Response.json({ category });
+    await invalidateUsers([userId]);
+    return Response.json({ category: toCategory(row) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof z.ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid category update", 422);
-    }
-
-    if (isMongoDuplicateKeyError(error)) {
-      return jsonError("Category with this name and type already exists", 409);
-    }
-
-    if (error instanceof Error) {
-      return jsonError(error.message, 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to update category", 500);
+    return handleRouteError(error, "Failed to update category", {
+      conflictMessage: "Category with this name and type already exists",
+    });
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ categoryId: string }> },
-) {
+export async function DELETE(_request: Request, { params }: Params) {
   try {
-    const userId = await requireUserId();
+    const { supabase, userId } = await requireUser();
     const { categoryId } = await params;
 
-    await connectToDatabase();
+    const category = await loadCategory(supabase, categoryId);
+    if (!category) return jsonError("Category not found", 404);
+    if (category.is_system) return jsonError("Cannot delete system or external category", 403);
 
-    const category = await Category.findById(toObjectId(categoryId));
+    // Transactions and budgets that used it become uncategorised via the
+    // foreign keys' ON DELETE SET NULL — nothing is left dangling.
+    must(await supabase.from("categories").delete().eq("id", categoryId));
 
-    if (!category) {
-      return jsonError("Category not found", 404);
-    }
-
-    if (!canManageCategory(category, userId)) {
-      return jsonError("Cannot delete system or external category", 403);
-    }
-
-    // Categories are referenced by transactions and budgets; deleting one
-    // out from under them would leave a dangling ObjectId, so clear the
-    // reference on both rather than cascading the delete.
-    await Promise.all([
-      Category.deleteOne({ _id: category._id }),
-      Transaction.updateMany(
-        { userId: toObjectId(userId), categoryId: category._id },
-        { $unset: { categoryId: "" } },
-      ),
-      Budget.updateMany(
-        { userId: toObjectId(userId), categoryId: category._id },
-        { $unset: { categoryId: "" } },
-      ),
-    ]);
-
+    await invalidateUsers([userId]);
     return Response.json({ success: true });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (error instanceof Error) {
-      return jsonError(error.message, 422);
-    }
-
-    logger.error("Unhandled API route error", error);
-    return jsonError("Failed to delete category", 500);
+    return handleRouteError(error, "Failed to delete category");
   }
 }
