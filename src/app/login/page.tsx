@@ -32,6 +32,14 @@ export default async function LoginPage({
           </p>
         )}
         <GoogleSignInButton next={safeNextPath(next)} />
+        {process.env.DEMO_LOGIN === "true" && process.env.NODE_ENV !== "production" && (
+          <a
+            href="/auth/demo"
+            className="block rounded-full border border-border px-4 py-2.5 text-center text-sm font-medium hover:bg-muted"
+          >
+            Continue as demo user
+          </a>
+        )}
         <p className="text-center text-xs text-muted-foreground">
           We only use your name, email and profile picture from Google.
         </p>

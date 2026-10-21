@@ -22,6 +22,7 @@ const schema = z.object({
   // Gemini key for the Financial Health Copilot. Unset: the copilot reports itself unavailable.
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_MODEL: z.string().min(1).optional(),
+  GEMINI_FALLBACK_MODEL: z.string().min(1).optional(),
 });
 
 // NEXT_PUBLIC_ values must be referenced literally for Next to inline them
@@ -35,6 +36,7 @@ const parsed = schema.parse({
   RECEIPT_EXTRACTOR: process.env.RECEIPT_EXTRACTOR || undefined,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || undefined,
   GEMINI_MODEL: process.env.GEMINI_MODEL || undefined,
+  GEMINI_FALLBACK_MODEL: process.env.GEMINI_FALLBACK_MODEL || undefined,
 });
 
 function required(value: string | undefined, key: string) {
@@ -59,4 +61,5 @@ export const env = {
   RECEIPT_EXTRACTOR: parsed.RECEIPT_EXTRACTOR,
   GEMINI_API_KEY: parsed.GEMINI_API_KEY,
   GEMINI_MODEL: parsed.GEMINI_MODEL ?? "gemini-3.8-flash",
+  GEMINI_FALLBACK_MODEL: parsed.GEMINI_FALLBACK_MODEL ?? "gemini-flash-latest",
 };

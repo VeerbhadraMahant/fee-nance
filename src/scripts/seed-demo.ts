@@ -162,7 +162,8 @@ async function main() {
   add({ type: "expense", title: "Swiggy order", amount: 486, category_id: cat("Food"), transaction_date: daysAgo(6) });
   add({ type: "expense", title: "Swiggy order", amount: 486, category_id: cat("Food"), transaction_date: daysAgo(6) });
 
-  check(await db.from("transactions").insert(txns), "insert transactions");
+  // Bulk insert sends null for keys missing from a row; fill the NOT NULL default.
+  check(await db.from("transactions").insert(txns.map((t) => ({ recurring_enabled: false, ...t }))), "insert transactions");
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);

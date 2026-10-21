@@ -54,20 +54,35 @@ async function callGemini(contents: Content[]) {
   const key = env.GEMINI_API_KEY;
   if (!key) throw new HttpError(503, "The copilot isn't configured yet (missing GEMINI_API_KEY).");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt() }] },
-        contents,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
-      }),
-      signal: AbortSignal.timeout(45_000),
-    },
-  );
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: systemPrompt() }] },
+    contents,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+  });
+
+  // The primary model is often overloaded (503) or slow; fall through to the fallback.
+  let response: Response | undefined;
+  for (const model of [env.GEMINI_MODEL, env.GEMINI_FALLBACK_MODEL]) {
+    response = undefined;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body,
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+    } catch (error) {
+      logger.error(`Gemini ${model} request failed`, error);
+      continue;
+    }
+    if (response.ok || ![429, 500, 503].includes(response.status)) break;
+    logger.error(`Gemini ${model} unavailable`, new Error(`${response.status}`));
+  }
+  if (!response) throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
 
   if (!response.ok) {
     logger.error("Gemini request failed", new Error(`${response.status} ${(await response.text()).slice(0, 300)}`));
