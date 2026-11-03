@@ -72,6 +72,23 @@ npm run seed:demo -- you@gmail.com --reset
 - [ ] Invalid payloads return `422` with a readable message
 - [ ] No secret appears in the browser bundle (search the built JS for `SERVICE_ROLE` and `GEMINI`)
 
+## 6a. Onboarding
+
+Use a fresh account, or clear the `feenance:tour:<your id>` key in the browser's local storage.
+
+- [ ] First visit to the dashboard shows the welcome dialog after a moment
+- [ ] "Skip for now" closes it and it does not return on reload
+- [ ] On an empty account, "Add sample data, then tour" fills the dashboard and starts the tour
+- [ ] The tour spotlights the sidebar (desktop) or the bottom bar (phone), then moves through Dashboard, Money, Groups, Insights, Tax, Goals, Copilot
+- [ ] On a phone, the tip card sits on the half of the screen the highlighted item is not on, and never hides it
+- [ ] Back, Next, the arrow keys and Escape all work; "Skip tour" ends it and it is not offered again
+- [ ] Finish returns to the dashboard
+- [ ] Account menu → Take the tour, the command palette ("tour"), and Profile → Getting started all replay it
+- [ ] While sample data is present, the banner shows; "Remove sample data" asks first and deletes only the sample
+- [ ] Add one of your own transactions on top of sample data, then remove the sample: yours stays
+- [ ] "Add sample data" is disabled on an account that already has transactions
+- [ ] Rotate the phone or resize the window mid-tour: the highlight follows the element
+
 ## 7. Offline and installed
 
 Do these on a phone with the app installed to the home screen (Add to Home Screen / Install), after signing in and opening each main page once while online.

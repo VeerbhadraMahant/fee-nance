@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   CornerDownLeft,
+  Compass,
   Monitor,
   Moon,
   Plus,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useOnboarding } from "@/components/onboarding/onboarding";
 import { ALL_NAV_ITEMS } from "./nav-config";
 
 /**
@@ -27,7 +29,7 @@ import { ALL_NAV_ITEMS } from "./nav-config";
 
 interface Command {
   id: string;
-  group: "Go to" | "Create" | "Theme";
+  group: "Go to" | "Create" | "Help" | "Theme";
   label: string;
   hint?: string;
   keywords?: string;
@@ -55,6 +57,7 @@ function score(command: Command, query: string) {
 export function CommandPalette() {
   const router = useRouter();
   const { setTheme } = useTheme();
+  const { startTour } = useOnboarding();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
@@ -123,6 +126,15 @@ export function CommandPalette() {
         icon: Plus,
         run: go("/groups"),
       },
+      {
+        id: "help:tour",
+        group: "Help",
+        label: "Take the tour",
+        hint: "A two-minute guided look around",
+        keywords: "onboarding walkthrough help guide tutorial welcome",
+        icon: Compass,
+        run: startTour,
+      },
       { id: "theme:light", group: "Theme", label: "Light theme", icon: Sun, run: () => setTheme("light") },
       { id: "theme:dark", group: "Theme", label: "Dark theme", icon: Moon, run: () => setTheme("dark") },
       {
@@ -133,7 +145,7 @@ export function CommandPalette() {
         run: () => setTheme("system"),
       },
     ];
-  }, [router, setTheme]);
+  }, [router, setTheme, startTour]);
 
   const results = React.useMemo(
     () =>

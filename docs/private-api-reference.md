@@ -54,6 +54,9 @@ All of these except `finance/aggregate` and `diagnostics` are cached when Redis 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/private/transactions` | List with totals. Query: `startDate`, `endDate`, `type`, `page`, `limit` (≤100), `sortBy` (`transactionDate`, `amount`, `createdAt`, `title`), `sortOrder` |
+| GET | `/api/private/demo` | `{ hasData, hasSampleData }`: whether the account has any transactions, and whether any are sample data |
+| POST | `/api/private/demo` | Adds sample transactions, budgets and goals tagged `is_demo`. `409` if the account already has transactions |
+| DELETE | `/api/private/demo` | Deletes rows tagged `is_demo` from transactions, budgets and goals, and nothing else |
 | POST | `/api/private/transactions` | Body: `type`, `title`, `amount`, `transactionDate`, `notes?`, `categoryId?`, `recurring?: { enabled, frequency?, nextRunAt? }`, `id?` (a UUID chosen by the client; the app always sends one so a replayed offline write hits the primary key and returns `409`, which it reads as "already saved") |
 | PATCH | `/api/private/transactions/[transactionId]` | Partial update |
 | DELETE | `/api/private/transactions/[transactionId]` | Delete |

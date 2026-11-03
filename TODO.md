@@ -28,6 +28,7 @@ Ordered by value. IDs in brackets refer to the backlog in [`fee-nance-updates.md
 - [x] **N16** Copilot drafts entries from free text for the user to confirm [F14]; copilot reads group balances
 - [x] **N17a** Installable, works offline, queued changes sync when back online ([`docs/offline.md`](docs/offline.md)). Logic verified; needs a real-device pass
 - [x] **N17b** Mobile pass: safe areas, 16px fields, 44px tap targets
+- [x] **N17e** First-run onboarding: welcome dialog, guided tour over the real screens, optional sample data that can be removed without touching real entries. Needs a real-browser pass
 - [ ] **N17c** Reminders by email or push (needs a provider key)
 - [ ] **N17d** Run `manual-qa-checklist.md` §7 on a real phone and fix what it finds
 - [ ] **N18** Money value object in integer paise everywhere [M1–M4]

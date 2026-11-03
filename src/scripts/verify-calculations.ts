@@ -38,6 +38,7 @@ import {
   type QueueItem,
 } from "../lib/offline/rules";
 import { budgetPace } from "../lib/budget-pace";
+import { buildSampleData } from "../lib/sample-data";
 
 let failures = 0;
 /** Checks that need to await; the summary waits for them. */
@@ -712,6 +713,24 @@ console.log("\nPending changes over a transaction list");
   check("the input list is not mutated", list.length === 2 && list[0].pending === undefined);
 }
 
+
+console.log("\nSample data for the tour");
+{
+  const now = new Date(2026, 10, 18, 15);
+  const s = buildSampleData(now);
+  const systemNames = ["Salary", "Freelance", "Food", "Rent", "Travel", "Shopping", "Utilities"];
+  check("nothing is dated in the future", s.transactions.every((t) => new Date(t.transaction_date).getTime() <= now.getTime()));
+  check("every category is one of the system categories",
+    s.transactions.every((t) => t.category === null || systemNames.includes(t.category)) &&
+    s.budgets.every((b) => b.category === null || systemNames.includes(b.category)));
+  check("amounts are positive and titles fit the column",
+    s.transactions.every((t) => t.amount > 0 && t.title.length >= 1 && t.title.length <= 100));
+  const swiggy = s.transactions.filter((t) => t.title === "Swiggy order");
+  check("includes a double charge for the duplicate detector", swiggy.length === 2 && swiggy[0].transaction_date === swiggy[1].transaction_date);
+  check("has income and expenses", s.transactions.some((t) => t.type === "income") && s.transactions.some((t) => t.type === "expense"));
+  check("budgets cover the current month", s.budgets.every((b) => new Date(b.period_start) <= now && new Date(b.period_end) > now));
+  check("no goal is already past its target", s.goals.every((g) => g.saved_amount < g.target_amount));
+}
 
 Promise.all(asyncChecks).then(() => {
   console.log(

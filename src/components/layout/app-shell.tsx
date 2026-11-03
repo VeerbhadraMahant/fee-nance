@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
+import { Compass, LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
@@ -29,6 +29,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toaster";
 import { useCurrentUser } from "@/components/providers/current-user";
 import { OfflineStatus } from "@/components/offline/offline-status";
+import { OnboardingProvider, SampleDataBanner, useOnboarding } from "@/components/onboarding/onboarding";
 import { clearOfflineData, hasPendingChanges, startOffline } from "@/lib/offline/client";
 import {
   Sheet,
@@ -77,6 +78,7 @@ function AccountMenu({
 }) {
   const user = useCurrentUser();
   const { confirm, confirmDialog } = useConfirm();
+  const { startTour } = useOnboarding();
   const name = user?.name ?? "Your account";
   const email = user?.email ?? "";
 
@@ -141,6 +143,10 @@ function AccountMenu({
               Profile &amp; settings
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={startTour}>
+            <Compass />
+            Take the tour
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {/* Destructive action kept separated from navigation items. */}
           <DropdownMenuItem variant="destructive" onSelect={handleSignOut}>
@@ -160,6 +166,7 @@ function SearchButton() {
   return (
     <button
       type="button"
+      data-tour="search"
       onClick={openCommandPalette}
       className="flex h-10 w-full items-center gap-2.5 rounded-full border-[1.5px] border-sidebar-border px-4 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
@@ -237,7 +244,7 @@ function DesktopSidebar() {
         <SearchButton />
       </div>
 
-      <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
+      <nav aria-label="Main" data-tour="nav" className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="space-y-1">
             <p className="overline px-4 pb-1">{section.label}</p>
@@ -265,6 +272,7 @@ function MobileTopBar() {
         <button
           type="button"
           onClick={openCommandPalette}
+          data-tour="search"
           aria-label="Search pages and actions"
           className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
@@ -300,6 +308,7 @@ function MobileBottomNav() {
     <>
       <nav
         aria-label="Main"
+        data-tour="nav"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-[1.5px] border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden print:hidden"
       >
         {tabs.map(({ href, label, shortLabel, icon: Icon }) => {
@@ -407,6 +416,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useDueRecurringEntries();
 
   return (
+    <OnboardingProvider>
     <div className="min-h-dvh">
       <a
         href="#main-content"
@@ -429,6 +439,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             "pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8 print:max-w-none print:p-0",
           )}
         >
+          <SampleDataBanner />
           {children}
         </main>
       </div>
@@ -437,5 +448,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <OfflineStatus />
       <CommandPalette />
     </div>
+    </OnboardingProvider>
   );
 }

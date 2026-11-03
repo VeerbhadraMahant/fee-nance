@@ -20,6 +20,7 @@ export function PageHeader({
 }) {
   return (
     <header
+      data-tour="page-header"
       className={cn(
         "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
         className,
@@ -31,7 +32,11 @@ export function PageHeader({
           <p className="measure text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+      {action && (
+        <div data-tour="page-action" className="flex shrink-0 items-center gap-2">
+          {action}
+        </div>
+      )}
     </header>
   );
 }

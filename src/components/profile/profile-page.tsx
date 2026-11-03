@@ -5,6 +5,8 @@ import { useTheme } from "next-themes";
 import {
   AlertTriangle,
   Check,
+  Compass,
+  FlaskConical,
   Monitor,
   Moon,
   Pencil,
@@ -27,6 +29,7 @@ import {
   type DashboardDefaultRange,
 } from "@/lib/user-preferences";
 import { SectionHeader } from "@/components/layout/page-header";
+import { useOnboarding } from "@/components/onboarding/onboarding";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -392,6 +395,41 @@ function GroupsAndPaymentsCard() {
   );
 }
 
+/* ── Getting started ──────────────────────────────────────────────────── */
+
+function GettingStartedCard() {
+  const { startTour, sample, busy, loadSample, removeSample } = useOnboarding();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Compass className="size-4" aria-hidden="true" />
+          Getting started
+        </CardTitle>
+        <CardDescription>
+          Replay the guided tour, or fill an empty account with made-up sample data so the charts have something to show.
+          Sample data is tagged, so removing it never touches your own entries.
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={startTour}>
+          Take the tour
+        </Button>
+        {sample?.hasSampleData ? (
+          <Button variant="outline" loading={busy} onClick={removeSample}>
+            <FlaskConical /> Remove sample data
+          </Button>
+        ) : (
+          <Button variant="outline" loading={busy} disabled={!sample || sample.hasData} onClick={loadSample}>
+            <FlaskConical /> Add sample data
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
+
 /* ── Data integrity check ─────────────────────────────────────────────── */
 
 interface DiagnosticsResult {
@@ -644,6 +682,8 @@ export function ProfilePage({
           <ThemePicker />
         </CardContent>
       </Card>
+
+      <GettingStartedCard />
 
       <GroupsAndPaymentsCard />
 
