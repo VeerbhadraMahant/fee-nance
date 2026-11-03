@@ -171,6 +171,7 @@ Group writes are `SECURITY DEFINER` because they touch several tables atomically
 | `join_group(code)` | Joins by invite code; idempotent |
 | `leave_group(id)` | Leave, refused while the caller's net position is not zero. An owner hands the group to the longest-standing member; the last member out deletes it |
 | `delete_group(id)` | The owner deletes the group, and its history, for everyone |
+| `is_demo` (transactions, budgets, goals) | Marks made-up sample rows from the first-run tour so "Remove sample data" deletes exactly those. Partial indexes keep it cheap |
 | `create_group_expense(...)` | Writes the expense, payers and splits in one transaction. With `p_client_key`, a repeat by the same author in the same group returns the expense already written (unique index `(group_id, created_by, client_key)`), which is what makes an offline replay safe |
 | `update_group_expense(...)` | Replaces an expense's fields, payers and splits in one transaction. The person who added it, or the group owner |
 | `delete_group_expense(id)` | Deletes it. Same permission |

@@ -4,6 +4,8 @@ A walkthrough of about 15 minutes for a demo or viva.
 
 ## Before the demo
 
+The quickest way to fill an account is in the app: sign in, choose "Add sample data, then tour" in the welcome dialog (or Profile → Getting started). The script below seeds a richer year, including a group, from the command line.
+
 ```bash
 npm install
 npm run dev                              # http://localhost:3000

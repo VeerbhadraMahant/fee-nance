@@ -84,6 +84,8 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 |---|---|---|
 | Redis cache with versioned invalidation | Done | Optional; fails open |
 | Command palette (Ctrl/⌘+K) | Done | |
+| First-run onboarding | Done | A welcome dialog on first visit to the dashboard, then a 12-step guided tour that spotlights the real screens and moves between pages. Replay from the account menu, the command palette or Profile → Getting started. Remembered per account. Logic type-checked; not yet watched in a real browser |
+| Sample data | Done | One click fills an empty account with three months of made-up transactions, two budgets and two goals. Tagged `is_demo`, so "Remove sample data" deletes only those. Refused on an account that already has transactions. Removal verified against the database |
 | Public product tour at `/tour` | Done | A standalone page (`public/tour.html`) with fictional data and live demos of each feature. Needs no sign-in. Replicates the app; it is not the app |
 | Light and dark themes, responsive layout | Done | |
 | CI: lint, typecheck, calculation and database checks, build | Done | |
