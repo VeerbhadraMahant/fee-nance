@@ -10,6 +10,8 @@
     "format": "eslint . --fix",
     "verify:calc": "tsx src/scripts/verify-calculations.ts",
     "verify:db": "tsx src/scripts/verify-db.ts",
+    "verify:sw": "tsx src/scripts/verify-sw.ts",
+    "verify:offline": "tsx src/scripts/verify-offline.ts",
     "seed:demo": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env src/scripts/seed-demo.ts"
   },
   "dependencies": {

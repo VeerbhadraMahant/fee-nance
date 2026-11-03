@@ -1,22 +1,38 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, Check, RotateCcw, Sparkles, X } from "lucide-react";
 
+import { formatCurrency } from "@/lib/format";
+import { readApiError } from "@/lib/use-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { toast } from "@/components/ui/toaster";
+
+interface Draft {
+  type: "income" | "expense";
+  title: string;
+  amount: number;
+  transactionDate: string;
+  categoryId?: string;
+  categoryName?: string;
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   steps?: string[];
+  drafts?: Draft[];
 }
 
+type DraftState = "pending" | "saving" | "saved" | "discarded";
+
 const SUGGESTIONS = [
+  "Who owes me money in my groups?",
+  "Add ₹450 for groceries yesterday",
   "How healthy are my finances right now?",
   "Where is most of my money going?",
   "Which subscriptions could I cut?",
-  "Am I on track for my goals?",
   "Anything unusual in my recent spending?",
 ];
 
@@ -73,6 +89,70 @@ function Markdown({ text }: { text: string }) {
   return <div className="space-y-2 text-sm leading-relaxed">{blocks}</div>;
 }
 
+/** A proposed entry. Nothing is saved until the user confirms here; saving goes
+ *  through the ordinary transactions route, validated like a hand-typed entry. */
+function DraftCard({ draft }: { draft: Draft }) {
+  const [state, setState] = React.useState<DraftState>("pending");
+
+  async function confirm() {
+    setState("saving");
+    const response = await fetch("/api/private/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: draft.type,
+        title: draft.title,
+        amount: draft.amount,
+        transactionDate: draft.transactionDate,
+        categoryId: draft.categoryId,
+      }),
+    });
+    if (!response.ok) {
+      toast.error(await readApiError(response, "Couldn't save that entry"));
+      setState("pending");
+      return;
+    }
+    toast.success(`"${draft.title}" added`);
+    setState("saved");
+  }
+
+  if (state === "discarded") return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-3xl border-[1.5px] border-foreground/20 p-3 text-sm">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{draft.title}</p>
+        <p className="text-xs text-muted-foreground">
+          {draft.type === "income" ? "Income" : "Expense"} · {draft.transactionDate.slice(0, 10)} ·{" "}
+          {draft.categoryName ?? "Uncategorised"}
+        </p>
+      </div>
+      <span className="tabular font-semibold">{formatCurrency(draft.amount)}</span>
+      {state === "saved" ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-success">
+          <Check className="size-3.5" aria-hidden="true" /> Saved
+        </span>
+      ) : (
+        <div className="flex gap-1.5">
+          <Button size="sm" loading={state === "saving"} onClick={confirm}>
+            Add it
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label="Discard draft"
+            disabled={state === "saving"}
+            onClick={() => setState("discarded")}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CopilotChat() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
@@ -113,6 +193,7 @@ export function CopilotChat() {
           role: "assistant",
           content: res.ok ? data.reply : (data.error ?? "Something went wrong. Try again."),
           steps: res.ok ? data.steps : undefined,
+          drafts: res.ok ? data.drafts : undefined,
         },
       ]);
     } catch {
@@ -162,6 +243,9 @@ export function CopilotChat() {
                   <p className="text-xs text-muted-foreground">{[...new Set(m.steps)].join(" · ")}</p>
                 )}
                 <Markdown text={m.content} />
+                {m.drafts?.map((draft, d) => (
+                  <DraftCard key={d} draft={draft} />
+                ))}
               </div>
             ),
           )

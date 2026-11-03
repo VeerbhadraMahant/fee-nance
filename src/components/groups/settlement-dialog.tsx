@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useCurrentUser } from "@/components/providers/current-user";
 import type { GroupMember } from "./types";
 
 export interface SettlementPrefill {
@@ -55,15 +56,22 @@ export function SettlementDialog({
   const [note, setNote] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [saving, setSaving] = React.useState(false);
+  // One key per opening of the dialog, so a double-submit or a retry after a
+  // dropped response records the payment once.
+  const [idempotencyKey, setIdempotencyKey] = React.useState("");
+  const currentUser = useCurrentUser();
 
   React.useEffect(() => {
     if (!open) return;
-    setFrom(prefill?.fromUserId ?? members[0]?.userId._id ?? "");
-    setTo(prefill?.toUserId ?? members[1]?.userId._id ?? "");
+    const me = currentUser?.id ?? members[0]?.userId._id ?? "";
+    const someoneElse = members.find((m) => m.userId._id !== me)?.userId._id ?? "";
+    setFrom(prefill?.fromUserId ?? me);
+    setTo(prefill?.toUserId ?? someoneElse);
     setAmount(prefill ? String(prefill.amount.toFixed(2)) : "");
     setNote("");
     setErrors({});
-  }, [open, prefill, members]);
+    setIdempotencyKey(crypto.randomUUID());
+  }, [open, prefill, members, currentUser]);
 
   const nameOf = (id: string) =>
     members.find((m) => m.userId._id === id)?.userId.name ?? "Someone";
@@ -74,6 +82,9 @@ export function SettlementDialog({
     const next: Record<string, string> = {};
     if (!from || !to) next.to = "Pick both people.";
     else if (from === to) next.to = "Payer and recipient must be different people.";
+    else if (currentUser && from !== currentUser.id && to !== currentUser.id) {
+      next.to = "You can only record a payment you made or received.";
+    }
 
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
@@ -86,7 +97,7 @@ export function SettlementDialog({
     setSaving(true);
     const response = await fetch(`/api/private/groups/${groupId}/settlements`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-idempotency-key": idempotencyKey },
       body: JSON.stringify({
         fromUserId: from,
         toUserId: to,

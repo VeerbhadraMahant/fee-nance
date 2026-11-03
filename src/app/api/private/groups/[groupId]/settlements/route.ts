@@ -136,6 +136,10 @@ export async function POST(request: Request, { params }: Params) {
     if (payload.fromUserId === payload.toUserId) {
       return jsonError("Settlement users must be different", 422);
     }
+    // Row-level security enforces this too; checking here gives a clear message.
+    if (userId !== payload.fromUserId && userId !== payload.toUserId) {
+      return jsonError("You can only record a payment you made or received", 422);
+    }
 
     const group = await loadGroup(supabase, groupId);
     if (!group) return jsonError("Group not found", 404);

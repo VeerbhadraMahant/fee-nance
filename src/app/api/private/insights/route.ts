@@ -91,6 +91,7 @@ type RuleRow = {
   amount: number;
   recurring_frequency: "monthly" | "yearly";
   recurring_next_run_at: string;
+  transaction_date: string;
 };
 
 async function buildInsights(supabase: SupabaseServerClient, startDate: Date, endDate: Date) {
@@ -120,7 +121,7 @@ async function buildInsights(supabase: SupabaseServerClient, startDate: Date, en
       // The recurring rules themselves.
       supabase
         .from("transactions")
-        .select("title, type, amount, recurring_frequency, recurring_next_run_at")
+        .select("title, type, amount, recurring_frequency, recurring_next_run_at, transaction_date")
         .eq("recurring_enabled", true)
         .in("recurring_frequency", ["monthly", "yearly"])
         .not("recurring_next_run_at", "is", null)
@@ -175,6 +176,7 @@ async function buildInsights(supabase: SupabaseServerClient, startDate: Date, en
     type: rule.type,
     amount: Number(rule.amount),
     recurring: { frequency: rule.recurring_frequency, nextRunAt: rule.recurring_next_run_at },
+    anchorDay: new Date(rule.transaction_date).getUTCDate(),
   }));
 
   /* ── Forecast inputs ────────────────────────────────────────────────── */
@@ -191,6 +193,7 @@ async function buildInsights(supabase: SupabaseServerClient, startDate: Date, en
       amount: rule.amount as number,
       frequency: rule.recurring.frequency as "monthly" | "yearly",
       nextRunAt: new Date(rule.recurring.nextRunAt),
+      anchorDay: rule.anchorDay,
     }));
 
   /* Recurring expenses appear twice: once as the rule the forecast projects

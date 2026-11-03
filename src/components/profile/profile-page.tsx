@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  Smartphone,
   Sun,
   Tags,
   Trash2,
@@ -17,6 +18,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
+import { isValidUpiId } from "@/lib/upi";
 import { readApiError } from "@/lib/use-query";
 import {
   dashboardRangeLabel,
@@ -44,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/misc";
 import { EmptyState, Skeleton } from "@/components/ui/states";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toaster";
@@ -257,6 +260,135 @@ function EditProfileDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Groups and payments ──────────────────────────────────────────────── */
+
+function GroupsAndPaymentsCard() {
+  const [loaded, setLoaded] = React.useState(false);
+  const [upiId, setUpiId] = React.useState("");
+  const [savedUpiId, setSavedUpiId] = React.useState("");
+  const [countShares, setCountShares] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    fetch("/api/private/me")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { user?: { upiId?: string; preferences?: { countGroupShares?: boolean } } } | null) => {
+        if (!active || !body?.user) return;
+        setUpiId(body.user.upiId ?? "");
+        setSavedUpiId(body.user.upiId ?? "");
+        setCountShares(body.user.preferences?.countGroupShares ?? true);
+        setLoaded(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const save = async (patch: Record<string, unknown>) => {
+    setSaving(true);
+    const response = await fetch("/api/private/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    setSaving(false);
+    if (!response.ok) {
+      const message = await readApiError(response, "Couldn't save that");
+      setError(message);
+      return false;
+    }
+    setError("");
+    return true;
+  };
+
+  const saveUpi = async () => {
+    const value = upiId.trim();
+    if (value && !isValidUpiId(value)) {
+      setError("That doesn't look like a UPI ID — it should look like name@bank.");
+      return;
+    }
+    if (await save({ upiId: value || null })) {
+      setSavedUpiId(value);
+      toast.success(value ? "UPI ID saved" : "UPI ID removed");
+    }
+  };
+
+  const toggleShares = async (next: boolean) => {
+    setCountShares(next);
+    if (await save({ preferences: { countGroupShares: next } })) {
+      toast.success(next ? "Group shares now count in your budgets" : "Group shares no longer count");
+    } else {
+      setCountShares(!next);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Smartphone className="size-4" aria-hidden="true" />
+          Groups &amp; payments
+        </CardTitle>
+        <CardDescription>
+          How group expenses show up in your own finances, and how friends pay you back.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5 pt-0">
+        {!loaded ? (
+          <Skeleton className="h-24" />
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label htmlFor="count-group-shares">Count my share of group expenses</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Your share of each group bill appears in budgets, totals, insights and the
+                  copilot, in the bill&rsquo;s category. Turn this off if you also log group
+                  spending as personal transactions, so it isn&rsquo;t counted twice.
+                </p>
+              </div>
+              <Switch
+                id="count-group-shares"
+                checked={countShares}
+                disabled={saving}
+                onCheckedChange={toggleShares}
+              />
+            </div>
+
+            <Field
+              label="UPI ID"
+              htmlFor="upi-id"
+              hint="Group members who owe you get a one-tap “Pay via UPI” button. Shown only to people in your groups."
+              error={error}
+            >
+              <Input
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value)}
+                placeholder="yourname@okaxis"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+          </>
+        )}
+      </CardContent>
+      <CardFooter className="justify-end">
+        <Button
+          variant="outline"
+          loading={saving}
+          disabled={!loaded || upiId.trim() === savedUpiId}
+          onClick={saveUpi}
+        >
+          Save UPI ID
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -512,6 +644,8 @@ export function ProfilePage({
           <ThemePicker />
         </CardContent>
       </Card>
+
+      <GroupsAndPaymentsCard />
 
       {/* ── Categories ──────────────────────────────────────────────── */}
       <Card>

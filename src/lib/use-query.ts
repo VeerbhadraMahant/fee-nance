@@ -12,6 +12,9 @@ import { toast } from "@/components/ui/toaster";
 
 const cache = new Map<string, unknown>();
 
+/** Fired by lib/offline/client.ts when queued changes sync or the connection returns. */
+const SYNCED_EVENT = "feenance:synced";
+
 /* ── In-flight counter, for the global progress bar ────────────────────── */
 
 let inFlight = 0;
@@ -67,6 +70,13 @@ export function useQuery<T>(url: string) {
     setRefreshCount((count) => count + 1);
   }, []);
 
+  // When queued offline changes reach the server (or the connection comes
+  // back), what's on screen is stale: fetch it again.
+  useEffect(() => {
+    window.addEventListener(SYNCED_EVENT, reload);
+    return () => window.removeEventListener(SYNCED_EVENT, reload);
+  }, [reload]);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -86,7 +96,8 @@ export function useQuery<T>(url: string) {
       } catch (err) {
         if (controller.signal.aborted) return;
         if (cache.has(url)) {
-          toast.error("Couldn't refresh — showing the last loaded data");
+          // Offline, the status pill already says so; don't repeat it per request.
+          if (navigator.onLine !== false) toast.error("Couldn't refresh — showing the last loaded data");
         } else {
           setError(err instanceof Error ? err.message : "Request failed");
         }

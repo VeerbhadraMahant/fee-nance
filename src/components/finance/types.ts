@@ -22,6 +22,8 @@ export interface Transaction {
     enabled: boolean;
     frequency?: "monthly" | "yearly";
   };
+  /** Made offline and not on the server yet. */
+  pending?: boolean;
 }
 
 export interface Budget {
@@ -33,6 +35,8 @@ export interface Budget {
   categoryId?: string;
   periodStart: string;
   periodEnd: string;
+  /** Spent so far in the period, including the caller's share of group expenses. */
+  spent?: number;
 }
 
 export interface FinancePayload {

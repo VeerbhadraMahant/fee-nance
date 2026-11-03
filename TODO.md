@@ -4,29 +4,32 @@ Ordered by value. IDs in brackets refer to the backlog in [`fee-nance-updates.md
 
 ## Now — correctness
 
-- [ ] **N1** Recurrence clamps to month-end (31 Jan → 28 Feb → 31 Mar), with a check for it
-- [ ] **N2** One occurrence per rule per date, enforced in the schema; generation safe to run concurrently [F8]
-- [ ] **N3** Generate due recurring entries automatically instead of from a button
-- [ ] **N4** Block leaving a group while owing or owed [I2]; the owner leaving hands ownership to another member instead of deleting the group
-- [ ] **N5** `create_group_expense` compares sums exactly, matching the documented contract [M6]
-- [ ] **N6** Only a party to a settlement (payer or payee) may record it
-- [ ] **N7** Rate-limit the copilot per user
+- [x] **N1** Recurrence clamps to month-end (31 Jan → 28 Feb → 31 Mar), with a check for it
+- [x] **N2** One occurrence per rule per date, enforced in the schema; generation safe to run concurrently [F8]
+- [x] **N3** Generate due recurring entries automatically instead of from a button (on app open; there is no background scheduler yet)
+- [x] **N4** Block leaving a group while owing or owed [I2]; the owner leaving hands ownership to another member instead of deleting the group
+- [x] **N5** `create_group_expense` compares sums exactly, matching the documented contract [M6]
+- [x] **N6** Only a party to a settlement (payer or payee) may record it
+- [x] **N7** Rate-limit the copilot per user
 
 ## Next — core product
 
-- [ ] **N8** Choose participants for an equal split
-- [ ] **N9** Edit and delete group expenses
-- [ ] **N10** Delete settlements
-- [ ] **N11** Group shares count in personal budgets and totals, by category [F5]
-- [ ] **N12** UPI settle-up links from a UPI ID on the profile
-- [ ] **N13** Gemini receipt extractor behind the existing registry
-- [ ] **N14** Pace-aware budgets [F10]
+- [x] **N8** Choose participants for an equal split
+- [x] **N9** Edit and delete group expenses
+- [x] **N10** Delete settlements
+- [x] **N11** Group shares count in personal budgets and totals, by category [F5]
+- [x] **N12** UPI settle-up links from a UPI ID on the profile
+- [x] **N13** Gemini receipt extractor behind the existing registry (untested against the live model)
+- [x] **N14** Pace-aware budgets [F10]
 
 ## Later — growth
 
-- [ ] **N15** CSV statement import with column mapping, preview and duplicate detection [F13]
-- [ ] **N16** Copilot drafts entries from free text for the user to confirm [F14]; copilot reads group balances
-- [ ] **N17** Installable web app (manifest) and reminders
+- [x] **N15** CSV statement import with column mapping, preview and duplicate detection [F13]
+- [x] **N16** Copilot drafts entries from free text for the user to confirm [F14]; copilot reads group balances
+- [x] **N17a** Installable, works offline, queued changes sync when back online ([`docs/offline.md`](docs/offline.md)). Logic verified; needs a real-device pass
+- [x] **N17b** Mobile pass: safe areas, 16px fields, 44px tap targets
+- [ ] **N17c** Reminders by email or push (needs a provider key)
+- [ ] **N17d** Run `manual-qa-checklist.md` §7 on a real phone and fix what it finds
 - [ ] **N18** Money value object in integer paise everywhere [M1–M4]
 - [ ] **N19** Service layer and split strategy classes for the SEML coursework [R1–R4]
 - [ ] **N20** Vitest suite, including per-route authorization tests [T1–T5]
@@ -36,9 +39,9 @@ Ordered by value. IDs in brackets refer to the backlog in [`fee-nance-updates.md
 - [x] Archive MongoDB-era DBMS docs under `docs/dbms/` [D1]
 - [x] Rewrite current docs for Supabase: overview, features, architecture, database, API, secrets, demo, QA
 - [x] Remove the stray `.github/agents/tasksync.agent.md`
-- [ ] Remove the unused `computePairwiseBalances`
-- [ ] Landing page copy: drop "shortest set of payments", mention itemized splits, insights, tax and copilot
-- [ ] Document the Sankey layout algorithm [D4]
+- [x] Remove the unused `computePairwiseBalances`
+- [x] Landing page copy: drop "shortest set of payments", mention itemized splits, insights, tax and copilot
+- [x] Sankey write-up [D4]: dropped. The layout is Recharts' own and the custom group Sankeys were replaced by bar charts, so there is no algorithm of ours to document
 
 ## Deferred
 

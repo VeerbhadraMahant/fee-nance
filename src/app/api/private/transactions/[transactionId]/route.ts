@@ -5,6 +5,7 @@ import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
 import { toTransaction, type TransactionRow } from "@/lib/data/mappers";
 import { jsonError } from "@/lib/http";
+import { firstRunAfter } from "@/lib/recurrence";
 import { handleRouteError, isUuid, must } from "@/lib/route";
 
 const updateTransactionSchema = z.object({
@@ -48,7 +49,37 @@ export async function PATCH(request: Request, { params }: Params) {
     if (payload.recurring) {
       updates.recurring_enabled = payload.recurring.enabled;
       updates.recurring_frequency = payload.recurring.frequency ?? null;
-      updates.recurring_next_run_at = payload.recurring.nextRunAt ?? null;
+      updates.recurring_next_run_at = null;
+
+      const frequency = payload.recurring.frequency;
+      if (payload.recurring.enabled && frequency) {
+        const current = must(
+          await supabase
+            .from("transactions")
+            .select("transaction_date, recurring_enabled, recurring_frequency, recurring_next_run_at")
+            .eq("id", transactionId)
+            .maybeSingle(),
+        ) as Pick<
+          TransactionRow,
+          "transaction_date" | "recurring_enabled" | "recurring_frequency" | "recurring_next_run_at"
+        > | null;
+        if (!current) return jsonError("Transaction not found", 404);
+
+        const ruleDate = new Date(payload.transactionDate ?? current.transaction_date);
+        // An edit that leaves the schedule alone keeps its place in it, so
+        // already generated occurrences aren't revisited.
+        const scheduleUnchanged =
+          current.recurring_enabled &&
+          current.recurring_frequency === frequency &&
+          ruleDate.getTime() === new Date(current.transaction_date).getTime() &&
+          current.recurring_next_run_at !== null;
+
+        updates.recurring_next_run_at = payload.recurring.nextRunAt
+          ? firstRunAfter(ruleDate, frequency, new Date(payload.recurring.nextRunAt)).toISOString()
+          : scheduleUnchanged
+            ? current.recurring_next_run_at
+            : firstRunAfter(ruleDate, frequency).toISOString();
+      }
     }
 
     // RLS turns someone else's id into zero rows, which is a 404 here.

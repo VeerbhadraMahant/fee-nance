@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { requireUser } from "@/lib/api-auth";
+import { spendByBudget } from "@/lib/budget-spend";
 import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
 import { toBudget, type BudgetRow } from "@/lib/data/mappers";
@@ -29,7 +30,8 @@ export async function GET(request: Request) {
     if (startDate) query = query.gte("period_end", startDate.toISOString());
 
     const rows = must(await query) as BudgetRow[];
-    return Response.json({ budgets: rows.map(toBudget) });
+    const spent = await spendByBudget(supabase, rows.map((row) => row.id));
+    return Response.json({ budgets: rows.map((row) => toBudget(row, spent.get(row.id) ?? 0)) });
   } catch (error) {
     return handleRouteError(error, "Failed to load budgets");
   }

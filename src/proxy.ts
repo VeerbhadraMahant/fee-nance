@@ -87,6 +87,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets and images.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Everything except static assets, images and the PWA files. The service
+  // worker and offline page must load with no session and no round trip.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|offline\\.html|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };

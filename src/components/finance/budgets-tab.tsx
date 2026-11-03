@@ -4,6 +4,7 @@ import * as React from "react";
 import { MoreHorizontal, Pencil, Target, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { budgetPace } from "@/lib/budget-pace";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,33 +17,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Budget, Category, Transaction } from "./types";
-
-/** Spend actually booked against a budget's category and period. */
-export function spendFor(budget: Budget, transactions: Transaction[]) {
-  const start = new Date(budget.periodStart).getTime();
-  const end = new Date(budget.periodEnd).getTime();
-
-  return transactions.reduce((total, txn) => {
-    if (txn.type !== "expense") return total;
-    if (budget.categoryId && txn.categoryId !== budget.categoryId) return total;
-    const at = new Date(txn.transactionDate).getTime();
-    if (at < start || at > end) return total;
-    return total + txn.amount;
-  }, 0);
-}
+import type { Budget, Category } from "./types";
 
 export function BudgetsTab({
   budgets,
   categories,
-  transactions,
   onCreate,
   onEdit,
   onDelete,
 }: {
   budgets: Budget[];
   categories: Category[];
-  transactions: Transaction[];
   onCreate: () => void;
   onEdit: (budget: Budget) => void;
   onDelete: (budget: Budget) => void;
@@ -70,7 +55,8 @@ export function BudgetsTab({
   return (
     <ul className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {budgets.map((budget) => {
-        const spent = spendFor(budget, transactions);
+        const spent = budget.spent ?? 0;
+        const pace = budgetPace(budget, spent);
         const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
         const remaining = budget.amount - spent;
         const over = remaining < 0;
@@ -136,6 +122,22 @@ export function BudgetsTab({
                 )}
                 aria-label={`${budget.name}: ${pct.toFixed(0)} percent of budget used`}
               />
+
+              {pace && (
+                <p
+                  className={cn(
+                    "mt-2 text-xs",
+                    pace.willExceed ? "text-warning" : "text-muted-foreground",
+                  )}
+                >
+                  {pace.elapsedPct.toFixed(0)}% of the period gone
+                  {pace.willExceed
+                    ? ` · on pace for ${formatCurrency(pace.projected, { whole: true })}`
+                    : pace.aheadBy <= -5
+                      ? " · spending slower than the calendar"
+                      : " · on pace"}
+                </p>
+              )}
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 {/* Status is a worded badge, not just a bar colour. */}

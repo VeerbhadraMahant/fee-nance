@@ -301,31 +301,39 @@ export function GroupManager() {
   const currentUser = useCurrentUser();
   const { confirm, confirmDialog } = useConfirm();
 
-  const handleDelete = async (group: Group) => {
+  const handleRemove = async (group: Group, mode: "leave" | "delete") => {
     const isOwner = group.members.some(
       (m) => m.userId._id === currentUser?.id && m.role === "owner",
     );
+    const othersRemain = group.members.length > 1;
 
     const ok = await confirm({
-      title: isOwner ? `Delete "${group.name}"?` : `Leave "${group.name}"?`,
-      description: isOwner
-        ? "This permanently deletes the group along with its expenses and settlements for every member. It can't be undone."
-        : "You'll no longer see this group's expenses or balances. Other members keep the group.",
-      confirmLabel: isOwner ? "Delete" : "Leave",
+      title: mode === "delete" ? `Delete "${group.name}"?` : `Leave "${group.name}"?`,
+      description:
+        mode === "delete"
+          ? "This permanently deletes the group along with its expenses and settlements for every member. It can't be undone."
+          : !othersRemain
+            ? "You're the only member, so leaving deletes the group."
+            : isOwner
+              ? "Ownership passes to the longest-standing member, and the group carries on without you. You need a settled balance to leave."
+              : "You'll no longer see this group's expenses or balances. Other members keep the group. You need a settled balance to leave.",
+      confirmLabel: mode === "delete" ? "Delete" : "Leave",
       destructive: true,
     });
     if (!ok) return;
 
-    const response = await fetch(`/api/private/groups/${group._id}`, {
-      method: "DELETE",
-    });
+    const response = await fetch(
+      `/api/private/groups/${group._id}${mode === "delete" ? "?action=delete" : ""}`,
+      { method: "DELETE" },
+    );
 
     if (!response.ok) {
       toast.error(await readApiError(response, "Couldn't remove this group"));
       return;
     }
 
-    toast.success(isOwner ? "Group deleted" : "You left the group");
+    const body = (await response.json()) as { action: "deleted" | "left" };
+    toast.success(body.action === "deleted" ? "Group deleted" : "You left the group");
     reload();
   };
 
@@ -396,21 +404,30 @@ export function GroupManager() {
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4">
                   <div className="flex items-center gap-1">
                     <InviteCode code={group.inviteCode} />
-                    <Tooltip content={isOwner ? "Delete group" : "Leave group"}>
+                    <Tooltip content="Leave group">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="size-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDelete(group)}
+                        onClick={() => handleRemove(group, "leave")}
                       >
-                        {isOwner ? (
-                          <Trash2 className="size-3.5" />
-                        ) : (
-                          <LogOut className="size-3.5" />
-                        )}
-                        <span className="sr-only">Remove group</span>
+                        <LogOut className="size-3.5" />
+                        <span className="sr-only">Leave group</span>
                       </Button>
                     </Tooltip>
+                    {isOwner && (
+                      <Tooltip content="Delete group for everyone">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemove(group, "delete")}
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span className="sr-only">Delete group</span>
+                        </Button>
+                      </Tooltip>
+                    )}
                   </div>
                   <Button variant="ghost" size="sm" asChild>
                     <Link href={`/groups/${group._id}`}>
