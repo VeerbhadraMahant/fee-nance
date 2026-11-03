@@ -84,6 +84,7 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 |---|---|---|
 | Redis cache with versioned invalidation | Done | Optional; fails open |
 | Command palette (Ctrl/⌘+K) | Done | |
+| Public product tour at `/tour` | Done | A standalone page (`public/tour.html`) with fictional data and live demos of each feature. Needs no sign-in. Replicates the app; it is not the app |
 | Light and dark themes, responsive layout | Done | |
 | CI: lint, typecheck, calculation and database checks, build | Done | |
 | Unit test runner (Vitest) | Not started | `verify:calc` and `verify:db` are standing checks |

@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  async rewrites() {
+    // The public product tour is a standalone page in /public.
+    return [{ source: "/tour", destination: "/tour.html" }];
+  },
   async headers() {
     return [
       {

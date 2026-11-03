@@ -112,7 +112,8 @@ export default function Home() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="w-full sm:w-auto">
-                <Link href="/login">Sign in</Link>
+                {/* A static page outside the app router, so a plain anchor. */}
+                <a href="/tour">Take the tour</a>
               </Button>
             </div>
           </Reveal>
