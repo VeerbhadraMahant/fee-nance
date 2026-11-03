@@ -18,6 +18,8 @@
 import { z } from "zod";
 
 import { requireUser } from "@/lib/api-auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { HttpError } from "@/lib/route";
 import { jsonError } from "@/lib/http";
 import { logger } from "@/lib/logger";
 import {
@@ -51,9 +53,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireUser();
+    const { userId } = await requireUser();
 
     const payload = extractRequestSchema.parse(await request.json());
+    await enforceRateLimit("receipts", userId, { limit: 20, windowSeconds: 60 * 60 });
     const extractor = getReceiptExtractor();
     const raw = await extractor.extract(payload);
 
@@ -69,6 +72,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return jsonError("Unauthorized", 401);
+    }
+
+    if (error instanceof HttpError) {
+      return jsonError(error.message, error.status);
     }
 
     if (error instanceof ExtractorNotConfiguredError) {
