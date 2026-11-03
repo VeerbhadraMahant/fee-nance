@@ -24,20 +24,30 @@ npm run seed:demo -- you@gmail.com --reset
 - [ ] Create, edit and delete a custom category; deleting one leaves its transactions uncategorised
 - [ ] System categories cannot be edited or deleted
 - [ ] Create a monthly budget for one category and an overall budget; spend matches the ledger
-- [ ] Create a recurring rule, generate due entries, and confirm each date
+- [ ] Create a recurring rule dated the 31st; after it falls due, entries land on month-end (28/29 Feb, 30 Apr), not the 3rd
+- [ ] Open the app in two tabs at once after a rule falls due: each occurrence exists once
+- [ ] Budgets show "x% of the period gone" and warn when on pace to overspend
+- [ ] Import a bank CSV: the preview flags rows already in the ledger; importing the same file again adds nothing
+- [ ] A CSV with debit/credit columns, one with a signed amount column, and one with `Dr`/`Cr` suffixes all import with the right income/expense
 - [ ] CSV export opens correctly in a spreadsheet
 
 ## 3. Groups
 
 - [ ] Create a group; the invite code is shown
 - [ ] Join with that code from a second account; a wrong code returns "Invalid invite code"
-- [ ] Add expenses with each split type: equal, custom, percentage, itemized
+- [ ] Add expenses with each split type: equal (with only some members ticked), custom, percentage, itemized
+- [ ] Give an expense a category; each member's share appears in their own budget for that category, and turning off "Count my share of group expenses" in Profile removes it
+- [ ] Edit an expense as its author and as the group owner; a third member sees no edit button, and the API refuses them
+- [ ] Delete an expense and a settlement; balances come back as before
 - [ ] Itemized: a proportional tax line follows each person's subtotal; the shares sum exactly to the total
 - [ ] Several payers on one expense are accepted when they sum to the total and rejected otherwise
 - [ ] Balances sum to zero across members
 - [ ] Recording a settlement updates balances; repeating the request with the same idempotency key does not create a second one
 - [ ] A non-member opening the group URL gets "Group not found"
-- [ ] Member leaves: the group remains for others. Owner deletes: the group disappears for everyone
+- [ ] A member who owes or is owed is refused when leaving, with the amount in the message; after settling they can leave
+- [ ] The owner leaving hands the group to another member; "Delete group" removes it for everyone
+- [ ] With a UPI ID saved in Profile, the person who owes you sees "Pay via UPI" (on a phone, it opens their UPI app with the amount)
+- [ ] A member who is neither payer nor payee can't record a settlement between two others
 
 ## 4. Insights and planning
 
@@ -51,7 +61,9 @@ npm run seed:demo -- you@gmail.com --reset
 
 - [ ] Without `GEMINI_API_KEY`, the page says the copilot is unavailable
 - [ ] With it, a broad question lists tool steps and quotes real figures
-- [ ] Asking it to add a transaction gets a refusal that names the right page
+- [ ] "Add ₹450 for groceries yesterday" produces a draft card; nothing is saved until "Add it" is pressed, and discarding it saves nothing
+- [ ] "Who owes me money?" quotes real group balances
+- [ ] Asking more than 30 questions in an hour returns a polite rate-limit message
 
 ## 6. Security
 

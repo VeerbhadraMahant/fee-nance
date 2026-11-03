@@ -56,6 +56,10 @@ flowchart LR
 | `src/lib/cache.ts` | Redis read-through cache with per-user version invalidation |
 | `src/lib/split.ts` | Split strategies: equal, custom, percentage, itemized (paise, largest remainder) |
 | `src/lib/money.ts` | `roundCurrency` and amount assertions |
+| `src/lib/csv-import.ts` | Statement CSV parsing, column guessing, row normalisation (pure) |
+| `src/lib/upi.ts` | UPI deep links and UPI ID validation |
+| `src/lib/budget-pace.ts` | Spend against time elapsed in a budget's period |
+| `src/lib/rate-limit.ts` | Per-user fixed-window limits for routes that call Gemini |
 | `src/lib/recurrence.ts` | Stepping recurring rules; shared by the runner and the forecast |
 | `src/lib/forecast.ts` | 90-day cash-flow projection |
 | `src/lib/health-score.ts`, `goals.ts`, `tax.ts`, `recurring-detect.ts` | Planning engines, pure and browser-safe |
@@ -71,7 +75,7 @@ Read-heavy routes (dashboard, analytics, insights, health, report, tax, group an
 
 ## Copilot
 
-`POST /api/private/copilot` sends the conversation to Gemini with a set of tool declarations. When the model asks for a tool, the route runs it through the caller's own Supabase client — so RLS scopes it — and feeds the result back, up to six steps. Every tool is read-only.
+`POST /api/private/copilot` sends the conversation to Gemini with a set of tool declarations. When the model asks for a tool, the route runs it through the caller's own Supabase client — so RLS scopes it — and feeds the result back, up to six steps. Every tool only reads, with one exception in kind: `draft_transaction` returns a proposed entry that the chat shows as a card. Nothing is saved until the user presses Add, which posts to the ordinary transactions route and is validated like any hand-typed entry. Questions are rate limited per user.
 
 ## Receipt scanning
 

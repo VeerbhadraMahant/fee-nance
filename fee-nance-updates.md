@@ -15,12 +15,12 @@ Measured in [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md); the work
 | Phase | Done | Open items |
 |---|---|---|
 | 0 Audit | ~100% | — (`docs/audit/`, MongoDB era) |
-| 1 Monetary correctness | ~25% | M1–M5: Money value object, paise everywhere; M6 exact comparison in SQL |
+| 1 Monetary correctness | ~45% | M1–M4: Money value object, paise everywhere. M5 (largest remainder) and M6 (exact comparison, in TypeScript and SQL) done |
 | 2 Authorization | ~90% | S5: reject unknown keys |
-| 3 Data integrity | ~60% | I1 category soft-delete (currently `on delete set null`), I2 leave-with-balance guard |
+| 3 Data integrity | ~85% | I1 category soft-delete (currently `on delete set null`). I2 leave-with-balance guard done |
 | 4 Tests | ~50% | T1 Vitest, T5 per-route authorization tests. T6 CI is done |
 | 5 Architecture | ~15% | R1 service layer, R2 split strategies, R4 ADR, R5 metrics. R3 mappers exist |
-| 6 Features | ~5% | All; F5, F8, F10, F13, F14 are prioritised in `TODO.md`, F1–F4 and F12 deferred |
+| 6 Features | ~35% | F5 (group shares in personal ledger), F8 (idempotent recurring generation), F10 (pace), F13 (CSV import), F14 (copilot drafts) done. F6, F7, F9, F11 open; F1–F4 and F12 deferred |
 | 7 Documentation | ~70% | D2 `docs/seml/`, D4 Sankey write-up. D1, D3, D5 done |
 
 Work top to bottom. Do not start a phase until the previous one is green.

@@ -4,52 +4,58 @@ The live list of what Fee-Nance does, and how complete each part is. Update this
 
 Status key: **Done** works end to end · **Partial** works with the gaps listed · **Not started**
 
+"Verified" in the notes means covered by `npm run verify:calc` or `npm run verify:db`. Anything else was type-checked and linted but not exercised against a live Supabase project or in a browser.
+
 ## Account
 
 | Feature | Status | Notes |
 |---|---|---|
 | Google sign-in (Supabase Auth) | Done | One button signs up and signs in. No email/password |
-| Profile created on first sign-in | Done | Database trigger copies name, email and avatar from Google |
-| Profile and preferences | Done | Name and default dashboard range |
-| Protected pages and APIs | Done | `src/proxy.ts` gate, JWT check in every route, RLS in Postgres |
+| Profile created on first sign-in | Done | Database trigger copies name, email and avatar from Google. Verified |
+| Profile and preferences | Done | Name, default dashboard range, UPI ID, whether group shares count |
+| Protected pages and APIs | Done | `src/proxy.ts` gate, JWT check in every route, RLS in Postgres. Verified |
+| Installable web app | Partial | Web manifest and icon, so phones can add it to the home screen. Needs a connection; no offline mode, no push notifications |
 
 ## Personal finance
 
 | Feature | Status | Notes |
 |---|---|---|
 | Transactions: create, edit, delete, filter, sort, paginate | Done | |
-| Categories: 7 system plus custom | Done | Deleting a category leaves its transactions uncategorised |
-| Budgets: monthly, quarterly, yearly, overall or per category | Done | |
-| Budget pacing (spend against time elapsed) | Not started | Backlog F10 |
-| Recurring transactions (monthly, yearly) | Partial | Generated only from a dashboard button; month-end dates drift (31 Jan → 3 Mar); concurrent runs can duplicate occurrences |
+| Categories: 7 system plus custom | Done | Deleting a category leaves its transactions uncategorised. A transaction or budget can't use another user's category (RLS). Verified |
+| Budgets: monthly, quarterly, yearly, overall or per category | Done | Spend comes from `budget_spend` and includes your share of group expenses |
+| Budget pacing | Done | "48% of the period gone", with a projection when spending runs ahead of the calendar. Verified |
+| Recurring transactions (monthly, yearly) | Done | Generated automatically once per browser session and from the dashboard button. Month-end rules stay at month-end (31 Jan → 28 Feb → 31 Mar). One occurrence per rule per date, enforced by a unique index, so concurrent runs are harmless. Verified. No background scheduler: entries appear when the app is next opened |
 | CSV export | Done | Transactions and group ledgers |
-| CSV import | Not started | Backlog F13 |
+| CSV statement import | Done | Column mapping, preview, duplicate detection by count. Day-first dates, debit/credit or signed columns, Dr/Cr suffixes. Up to 500 rows at a time; imported rows are uncategorised. Parsing verified |
 
 ## Groups
 
 | Feature | Status | Notes |
 |---|---|---|
-| Create, join by invite code, leave | Partial | A member can leave while owing or being owed, which breaks settle-up; the owner leaving deletes the group for everyone |
+| Create, join by invite code | Done | |
+| Leave a group | Done | Refused while you owe or are owed anything. An owner who leaves hands ownership to the longest-standing member; the last member out deletes the group. Verified |
+| Delete a group | Done | Owner only, for everyone |
 | Shared expenses with several payers | Done | |
-| Equal split | Partial | Always splits across every member; no way to choose participants |
-| Custom, percentage and itemized splits | Done | Itemized works in integer paise, with tax and tip spread proportionally |
-| Receipt scanning for itemized splits | Partial | The extractor interface and route exist, but no extractor is registered, so the scan button never shows |
-| Edit or delete a group expense | Not started | |
-| Balances and suggested settlements | Partial | Greedy debtor/creditor matching: at most n−1 payments, not guaranteed minimal |
-| Record a settlement | Partial | Idempotent by key; any member can record one between any two members |
-| Edit or delete a settlement | Not started | |
-| UPI settle-up links | Not started | |
-| Group share counted in personal budgets and totals | Not started | Backlog F5 — the product's central idea |
+| Equal split | Done | Choose who shared it; spare paise go out one each. Verified for 2–12 people |
+| Custom, percentage and itemized splits | Done | Percentage and itemized use largest-remainder allocation in paise. Verified |
+| Expense category | Done | Shared expense categories only, so each member's share lands in their own budget for it |
+| Edit or delete a group expense | Done | The person who added it, or the group owner. Verified |
+| Receipt scanning for itemized splits | Partial | Gemini reads the photo and fills in the lines; you still choose who shared each. Rate limited. Not tested against the live model |
+| Balances and suggested settlements | Done | Greedy debtor/creditor matching: at most n−1 payments, not guaranteed minimal. A former member with a leftover balance (from before the leave rule) stays visible |
+| Record a settlement | Done | Only the payer or payee can record one. Idempotent: the dialog sends a key. Verified |
+| Delete a settlement | Done | Payer, payee or whoever recorded it. Verified |
+| UPI settle-up links | Done | "Pay via UPI" opens the payer's UPI app with payee and amount filled in, using the payee's UPI ID. Recording the payment stays a separate step. Link format verified; not tried in a real UPI app |
+| Group share counted in personal budgets and totals | Done | Your share of each group expense appears as spending in the expense's category, on its date. What you *paid* is not counted. Turn off under Profile → Groups & payments. Verified. Transaction list totals show transactions only |
 
 ## Analytics and insights
 
 | Feature | Status | Notes |
 |---|---|---|
-| Dashboard: balance, trends, category breakdown, recent activity | Done | Personal transactions only |
+| Dashboard: balance, trends, category breakdown | Done | Totals include group shares; the recent-activity list shows transactions only |
 | Analytics: Sankey money flow, trajectory, composition, quarterly, efficiency | Done | |
 | Group analytics: cross-group Sankey, timelines, member shares | Done | |
 | 90-day cash-flow forecast with confidence band | Done | Approximates the recurring/discretionary overlap (backlog F8) |
-| Outliers, duplicate charges, category drift | Done | SQL window functions |
+| Outliers, duplicate charges, category drift | Done | SQL window functions over your own transactions |
 | Unruled recurring payees and overlapping subscriptions | Done | |
 | Financial health score | Done | Five weighted pillars |
 | Monthly report with print stylesheet | Done | |
@@ -65,8 +71,10 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Ledger-grounded Q&A (Gemini) | Partial | Read-only tools over personal data; no group data, no rate limit, no streaming |
-| Draft entries from free text | Not started | Backlog F14 |
+| Ledger-grounded Q&A (Gemini) | Done | Tools: snapshot, category spend, trend, transaction search, budgets, goals, recurring rules, unusual activity, group balances |
+| Draft entries from free text | Done | "Add ₹450 for groceries yesterday" produces a draft card; nothing is saved until you press Add. Saving goes through the ordinary transactions route |
+| Rate limiting | Done | 30 questions per user per hour (copilot), 20 scans per hour (receipts). Shared across servers with Upstash; per-instance memory without it |
+| Streaming replies | Not started | |
 
 ## Platform
 
@@ -75,6 +83,11 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 | Redis cache with versioned invalidation | Done | Optional; fails open |
 | Command palette (Ctrl/⌘+K) | Done | |
 | Light and dark themes, responsive layout | Done | |
-| Installable app, push or email reminders | Not started | |
 | CI: lint, typecheck, calculation and database checks, build | Done | |
 | Unit test runner (Vitest) | Not started | `verify:calc` and `verify:db` are standing checks |
+| Reminders by email or push | Not started | |
+| Multiple currencies | Not started | INR only |
+
+## Not planned
+
+Event-sourced ledger, amendment trail, time-travel balances, settlement handshake and disputes (backlog F1–F4, F12). See `TODO.md`.
