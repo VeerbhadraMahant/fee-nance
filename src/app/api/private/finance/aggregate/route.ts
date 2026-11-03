@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/api-auth";
+import { spendByBudget } from "@/lib/budget-spend";
 import {
   toBudget,
   toCategory,
@@ -45,10 +46,12 @@ export async function GET(request: Request) {
       budgets.then(must),
     ]);
 
+    const spent = await spendByBudget(supabase, (budgetRows as BudgetRow[]).map((b) => b.id));
+
     return Response.json({
       categories: (categoryRows as CategoryRow[]).map(toCategory),
       transactions: (transactionRows as TransactionRow[]).map(toTransaction),
-      budgets: (budgetRows as BudgetRow[]).map(toBudget),
+      budgets: (budgetRows as BudgetRow[]).map((row) => toBudget(row, spent.get(row.id) ?? 0)),
     });
   } catch (error) {
     return handleRouteError(error, "Failed to load finance workspace");
