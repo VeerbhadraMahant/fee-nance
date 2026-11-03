@@ -11,13 +11,23 @@
 
 import { buildForecast, standardDeviation } from "../lib/forecast";
 import { computeItemizedShares, computeShares } from "../lib/split";
-import { projectOccurrences } from "../lib/recurrence";
+import { firstRunAfter, getNextDate, projectOccurrences } from "../lib/recurrence";
 import { compareRegimes, computeNewRegime, computeOldRegime, EMPTY_DEDUCTIONS } from "../lib/tax";
 import { computeHealthScore } from "../lib/health-score";
 import { projectGoal } from "../lib/goals";
 import { detectRecurring } from "../lib/recurring-detect";
 import { DbQueryError, handleRouteError, HttpError } from "../lib/route";
 import { safeNextPath } from "../lib/safe-redirect";
+import {
+  duplicateKey,
+  guessMapping,
+  normaliseRows,
+  parseAmount,
+  parseCsv,
+  parseStatementDate,
+} from "../lib/csv-import";
+import { upiPayLink, isValidUpiId } from "../lib/upi";
+import { budgetPace } from "../lib/budget-pace";
 
 let failures = 0;
 
@@ -150,6 +160,45 @@ console.log("\nSplit strategy dispatch");
   check("equal split unaffected", sumShares(computeShares(100, "equal", [], members)) === 100);
 }
 
+console.log("\nEqual and percentage splits — paise, largest remainder");
+{
+  const everyone = computeShares(100, "equal", [], members);
+  check("no participants listed means the whole group", everyone.length === 4);
+
+  const three = computeShares(100, "equal", [{ userId: "a" }, { userId: "c" }, { userId: "d" }], members);
+  check("listed participants only", three.length === 3 && !three.some((s) => s.userId === "b"));
+  check("₹100 across 3 sums exactly", sumShares(three) === 100, `got ${sumShares(three)}`);
+  const amounts = three.map((s) => s.shareAmount).sort();
+  check("the spare paisa goes to one person", JSON.stringify(amounts) === JSON.stringify([33.33, 33.33, 33.34]),
+    JSON.stringify(amounts));
+
+  for (let n = 2; n <= 12; n += 1) {
+    const ids = Array.from({ length: n }, (_, i) => `m${String(i).padStart(2, "0")}`);
+    for (const total of [(n + 1) / 100, 99.99, 1000.07, 12345.67]) {
+      const shares = computeShares(total, "equal", [], ids);
+      if (sumShares(shares) !== total) {
+        check(`equal ₹${total} across ${n} sums exactly`, false, `got ${sumShares(shares)}`);
+      }
+    }
+  }
+  check("equal splits sum exactly for 2–12 members and awkward totals", true);
+
+  expectThrow("participant outside the group", () =>
+    computeShares(100, "equal", [{ userId: "zz" }], members),
+  );
+
+  const pct = computeShares(100.01, "percentage", [
+    { userId: "a", percentage: 33.33 },
+    { userId: "b", percentage: 33.33 },
+    { userId: "c", percentage: 33.34 },
+  ], members);
+  check("repeating percentages allocate instead of missing a paisa", sumShares(pct) === 100.01,
+    `got ${sumShares(pct)}`);
+  expectThrow("percentages must total 100", () =>
+    computeShares(100, "percentage", [{ userId: "a", percentage: 60 }, { userId: "b", percentage: 30 }], members),
+  );
+}
+
 console.log("\nRecurrence projection");
 {
   const start = new Date(2026, 0, 15);
@@ -164,6 +213,29 @@ console.log("\nRecurrence projection");
 
   const runaway = projectOccurrences(new Date(1990, 0, 1), "monthly", new Date(2030, 0, 1));
   check("a stale rule cannot spin forever", runaway.length <= 240, `got ${runaway.length}`);
+
+  // Dates are stored as UTC midnight of the chosen day.
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  const monthEnd = projectOccurrences(new Date("2026-01-31T00:00:00Z"), "monthly", new Date("2026-05-31T00:00:00Z"));
+  check("a rule on the 31st stays at month-end",
+    monthEnd.map(day).join() === "2026-01-31,2026-02-28,2026-03-31,2026-04-30,2026-05-31",
+    monthEnd.map(day).join());
+
+  // Stepping from an already clamped date needs the anchor, as the runner does.
+  const fromFeb = getNextDate(new Date("2026-02-28T00:00:00Z"), "monthly", 31);
+  check("the anchor day survives a clamped month", day(fromFeb) === "2026-03-31", day(fromFeb));
+
+  const leap = projectOccurrences(new Date("2028-02-29T00:00:00Z"), "yearly", new Date("2033-01-01T00:00:00Z"));
+  check("29 Feb falls back to 28 Feb, then returns in leap years",
+    leap.map(day).join() === "2028-02-29,2029-02-28,2030-02-28,2031-02-28,2032-02-29", leap.map(day).join());
+
+  const ruleDate = new Date("2026-03-05T00:00:00Z");
+  check("first run is a period after the rule itself",
+    day(firstRunAfter(ruleDate, "monthly")) === "2026-04-05");
+  check("a requested first run on the rule's own date is pushed forward",
+    day(firstRunAfter(ruleDate, "monthly", ruleDate)) === "2026-04-05");
+  check("a later requested first run is kept",
+    day(firstRunAfter(ruleDate, "yearly", new Date("2026-06-01T00:00:00Z"))) === "2026-06-01");
 }
 
 console.log("\nForecast");
@@ -372,6 +444,103 @@ console.log("\nPost-login redirect guard");
   check("protocol-relative rejected", safeNextPath("//evil.com") === "/dashboard");
   check("backslash trick rejected", safeNextPath("/\\evil.com") === "/dashboard");
   check("missing → fallback", safeNextPath(null) === "/dashboard");
+}
+
+console.log("\nStatement import");
+{
+  check("day-first slash dates", parseStatementDate("03/04/2026") === "2026-04-03");
+  check("ISO dates", parseStatementDate("2026-04-03") === "2026-04-03");
+  check("dd-Mon-yyyy", parseStatementDate("3-Apr-2026") === "2026-04-03");
+  check("dd Month yy", parseStatementDate("03 April 26") === "2026-04-03");
+  check("a time of day is ignored", parseStatementDate("03/04/2026 14:32:10") === "2026-04-03");
+  check("31 Feb is rejected", parseStatementDate("31/02/2026") === null);
+  check("garbage is rejected", parseStatementDate("yesterday") === null);
+
+  check("lakh separators and rupee sign", parseAmount("₹ 1,23,456.50") === 123456.5);
+  check("parentheses mean money out", parseAmount("(450.00)") === -450);
+  check("Dr suffix means money out", parseAmount("450.00 Dr") === -450);
+  check("Cr suffix means money in", parseAmount("450.00 Cr") === 450);
+  check("a leading minus", parseAmount("-1,200") === -1200);
+  check("blank and text are not numbers", parseAmount("") === null && parseAmount("n/a") === null);
+
+  const table = parseCsv(
+    [
+      "Date,Narration,Withdrawal Amt.,Deposit Amt.,Balance",
+      '03/04/2026,"UPI-SWIGGY, BLR",486.00,,10000',
+      "04/04/2026,SALARY APR,,92000.00,102000",
+      "05/04/2026,,10,,0",
+      "xx,BAD DATE,10,,0",
+    ].join("\r\n"),
+  );
+  check("quoted commas stay inside the field", table[1][1] === "UPI-SWIGGY, BLR", table[1][1]);
+  const mapping = guessMapping(table[0]);
+  check(
+    "headers are recognised",
+    mapping.date === 0 && mapping.title === 1 && mapping.debit === 2 && mapping.credit === 3,
+    JSON.stringify(mapping),
+  );
+  const { rows, problems } = normaliseRows(table.slice(1), mapping);
+  check(
+    "debit and credit columns give expense and income",
+    rows.length === 2 &&
+      rows[0].type === "expense" &&
+      rows[0].amount === 486 &&
+      rows[1].type === "income" &&
+      rows[1].amount === 92000,
+    JSON.stringify(rows),
+  );
+  check(
+    "unreadable rows are reported with their line, not guessed",
+    problems.length === 2 && problems[0].line === 4 && problems[1].line === 5,
+    JSON.stringify(problems),
+  );
+
+  const semicolons = parseCsv("Date;Description;Amount\n03/04/2026;Chai;-40\n");
+  check("semicolon-separated files", semicolons[1][2] === "-40");
+  const signed = normaliseRows(semicolons.slice(1), guessMapping(semicolons[0]));
+  check("a signed amount column", signed.rows[0]?.type === "expense" && signed.rows[0].amount === 40);
+
+  check(
+    "duplicate key ignores case and spacing",
+    duplicateKey({ date: "2026-04-03", amount: 40, type: "expense", title: "Chai " }) ===
+      duplicateKey({ date: "2026-04-03", amount: 40, type: "expense", title: "CHAI" }),
+  );
+}
+
+console.log("\nUPI links");
+{
+  check("valid UPI ids", isValidUpiId("alice.rao@okaxis") && isValidUpiId("9876543210@ybl"));
+  check("invalid UPI ids", !isValidUpiId("not a upi id") && !isValidUpiId("a@") && !isValidUpiId("@bank"));
+  const link = upiPayLink({ upiId: "alice@okaxis", payeeName: "Alice Rao", amount: 600, note: "Fee-Nance: Goa trip" });
+  check(
+    "link carries payee, amount, currency and note",
+    link === "upi://pay?pa=alice%40okaxis&pn=Alice%20Rao&am=600.00&cu=INR&tn=Fee-Nance%3A%20Goa%20trip",
+    link,
+  );
+}
+
+console.log("\nBudget pacing");
+{
+  const budget = {
+    _id: "b",
+    name: "Food",
+    amount: 10000,
+    cycle: "monthly" as const,
+    currency: "INR" as const,
+    periodStart: "2026-06-01T00:00:00.000Z",
+    periodEnd: "2026-06-30T23:59:59.000Z",
+  };
+  const midMonth = Date.parse("2026-06-15T12:00:00.000Z");
+  const hot = budgetPace(budget, 8000, midMonth);
+  check("80% spent at mid-month projects well over budget", hot?.willExceed === true && hot.projected > 15000, JSON.stringify(hot));
+  const calm = budgetPace(budget, 4800, midMonth);
+  check("48% spent at mid-month is on pace", calm?.willExceed === false && Math.abs(calm.aheadBy) < 5, JSON.stringify(calm));
+  check("no pace before the period starts", budgetPace(budget, 100, Date.parse("2026-05-20T00:00:00.000Z")) === null);
+  check("no pace after it ends", budgetPace(budget, 100, Date.parse("2026-07-02T00:00:00.000Z")) === null);
+  check(
+    "no pace in the first hours, when one purchase swings it",
+    budgetPace(budget, 500, Date.parse("2026-06-01T06:00:00.000Z")) === null,
+  );
 }
 
 console.log(
