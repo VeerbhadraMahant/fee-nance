@@ -39,6 +39,7 @@ export function must<T>(result: { data: T; error: DbError | null }): T {
 /** Messages raised by our own SQL functions that are safe to show users. */
 const USER_FACING_DB_MESSAGES: Record<string, { status: number; message: string }> = {
   group_not_found: { status: 404, message: "Group not found" },
+  expense_not_found: { status: 404, message: "Expense not found" },
   invalid_invite_code: { status: 404, message: "Invalid invite code" },
   unauthorized: { status: 401, message: "Unauthorized" },
 };
