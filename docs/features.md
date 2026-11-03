@@ -10,7 +10,8 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Google sign-in (Supabase Auth) | Done | One button signs up and signs in. No email/password |
+| Google sign-in (Supabase Auth) | Done | One button signs up and signs in |
+| Email sign-in | Done | Email and password, or a one-time link emailed to you (also the way back in if you forget the password). Needs the Email provider on in Supabase; confirmation emails use Supabase's email service, which is rate limited unless you add your own SMTP. Not tried against a live project |
 | Profile created on first sign-in | Done | Database trigger copies name, email and avatar from Google. Verified |
 | Profile and preferences | Done | Name, default dashboard range, UPI ID, whether group shares count |
 | Protected pages and APIs | Done | `src/proxy.ts` gate, JWT check in every route, RLS in Postgres. Verified |
