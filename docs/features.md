@@ -86,6 +86,7 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 | Command palette (Ctrl/⌘+K) | Done | |
 | First-run onboarding | Done | A welcome dialog on first visit to the dashboard, then a 12-step guided tour that spotlights the real screens and moves between pages. Replay from the account menu, the command palette or Profile → Getting started. Remembered per account. Logic type-checked; not yet watched in a real browser |
 | Sample data | Done | One click fills an empty account with three months of made-up transactions, two budgets and two goals. Tagged `is_demo`, so "Remove sample data" deletes only those. Refused on an account that already has transactions. Removal verified against the database |
+| Product film on the landing page | Done | A 34-second Remotion film (`src/remotion/`): logging money, budget pace, a group split, insights and forecast, offline sync. Played live on the landing page by `@remotion/player`, so there is no video file; loads only when scrolled near; shows a still frame under reduced motion. Made-up data, no sound. `npm run video:studio` to edit it, `npm run video:render` for an MP4 |
 | Public product tour at `/tour` | Done | A standalone page (`public/tour.html`) with fictional data and live demos of each feature. Needs no sign-in. Replicates the app; it is not the app |
 | Light and dark themes, responsive layout | Done | |
 | CI: lint, typecheck, calculation and database checks, build | Done | |

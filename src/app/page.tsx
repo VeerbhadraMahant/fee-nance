@@ -9,6 +9,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { ProductVideo } from "@/components/landing/product-video";
 import { Reveal } from "@/components/landing/reveal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -124,6 +125,28 @@ export default function Home() {
             </p>
           </Reveal>
         </div>
+      </section>
+
+      {/* ── Product film ────────────────────────────────────────────── */}
+      <section id="film" className="mx-auto max-w-6xl px-4 pt-16 sm:px-6 sm:pt-24 lg:px-8">
+        <Reveal>
+          <div className="max-w-2xl">
+            <p className="overline">See it in 35 seconds</p>
+            <h2 className="mt-2 font-display text-3xl sm:text-4xl">
+              The whole app, no sign-up.
+            </h2>
+            <p className="measure mt-3 text-muted-foreground">
+              Logging money, budgets with pace, group splits, insights, and what
+              happens with no signal. Made-up data, no sound.{" "}
+              <a href="/tour" className="font-medium text-foreground underline underline-offset-4">
+                Want to poke at it yourself? Take the interactive tour.
+              </a>
+            </p>
+          </div>
+        </Reveal>
+        <Reveal delay={80} className="mt-8">
+          <ProductVideo />
+        </Reveal>
       </section>
 
       {/* ── Features ────────────────────────────────────────────────── */}

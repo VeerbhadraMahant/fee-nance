@@ -193,6 +193,8 @@ npm run seed:demo -- you@gmail.com
 - `npm run dev` / `build` / `start` — Next.js
 - `npm run lint`, `npm run format` — ESLint (with `--fix`)
 - `npm run verify:calc` — the pure money modules: split allocation, recurrence, forecast, tax, health score, goals, recurring detection, statement-import parsing, UPI links, budget pacing, plus route error mapping. No database needed
+- `npm run video:studio` — opens Remotion Studio to edit the landing-page film in `src/remotion/`
+- `npm run video:render` — renders the film to `out/fee-nance.mp4`
 - `npm run verify:sw` — runs the service worker in a sandbox and checks every offline caching rule. No browser needed
 - `npm run verify:offline` — runs the offline client against a fake network and IndexedDB: queueing, replay, repeatability, rejected changes. No browser needed
 - `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function, group invariants, group shares in the personal ledger, and expense and settlement permissions. No Supabase project needed
