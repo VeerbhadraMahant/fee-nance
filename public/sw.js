@@ -99,19 +99,20 @@ const latestKey = (url) => new Request(url.origin + url.pathname + "?__latest");
 
 /* ── Strategies ──────────────────────────────────────────────────────── */
 
-async function cacheFirstStatic(request) {
+async function cacheFirstStatic(event, request) {
   const cache = await caches.open(STATIC);
   const hit = await cache.match(request);
   if (hit) return hit;
   const response = await fetch(request);
   if (response.ok) {
-    cache.put(request, response.clone());
-    trim(STATIC, MAX_STATIC_ENTRIES);
+    // waitUntil: the browser may stop the worker as soon as the response is
+    // sent, and an unfinished write would leave nothing saved.
+    event.waitUntil(cache.put(request, response.clone()).then(() => trim(STATIC, MAX_STATIC_ENTRIES)));
   }
   return response;
 }
 
-async function pageStrategy(request, url) {
+async function pageStrategy(event, request, url) {
   const cache = await caches.open(PAGES);
   const key = pageKey(url);
   const saved = await cache.match(key);
@@ -120,7 +121,7 @@ async function pageStrategy(request, url) {
     // With a saved copy, don't make someone on a bad connection wait for it.
     const response = await fetchWithin(request, saved ? 4000 : 0);
     if (response.ok && !response.redirected && isPagePath(url.pathname)) {
-      cache.put(key, response.clone());
+      event.waitUntil(cache.put(key, response.clone()));
     }
     return response;
   } catch {
@@ -130,15 +131,14 @@ async function pageStrategy(request, url) {
   }
 }
 
-async function apiStrategy(request, url) {
+async function apiStrategy(event, request, url) {
   const cache = await caches.open(API);
   const saved = (await cache.match(request)) || (await cache.match(latestKey(url)));
 
   try {
     const response = await fetchWithin(request, saved ? 6000 : 0);
     if (response.ok) {
-      cache.put(request, response.clone());
-      cache.put(latestKey(url), response.clone());
+      event.waitUntil(Promise.all([cache.put(request, response.clone()), cache.put(latestKey(url), response.clone())]));
     }
     return response;
   } catch {
@@ -150,11 +150,11 @@ async function apiStrategy(request, url) {
   }
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(event, request) {
   const cache = await caches.open(SHELL);
   const hit = await cache.match(request);
   const refresh = fetch(request).then((response) => {
-    if (response.ok) cache.put(request, response.clone());
+    if (response.ok) event.waitUntil(cache.put(request, response.clone()));
     return response;
   });
   if (hit) {
@@ -177,12 +177,12 @@ self.addEventListener("fetch", (event) => {
   if (path.startsWith("/auth/") || path === "/sw.js") return;
 
   if (path.startsWith("/_next/static/")) {
-    event.respondWith(cacheFirstStatic(request));
+    event.respondWith(cacheFirstStatic(event, request));
     return;
   }
 
   if (path.startsWith("/api/private/")) {
-    event.respondWith(apiStrategy(request, url));
+    event.respondWith(apiStrategy(event, request, url));
     return;
   }
   if (path.startsWith("/api/") || path.startsWith("/_next/")) return;
@@ -193,12 +193,12 @@ self.addEventListener("fetch", (event) => {
 
   const wantsHtml = request.mode === "navigate" || (request.headers.get("accept") || "").includes("text/html");
   if (wantsHtml) {
-    event.respondWith(pageStrategy(request, url));
+    event.respondWith(pageStrategy(event, request, url));
     return;
   }
 
   if (/\.(?:png|svg|ico|webp|jpg|jpeg|woff2?)$/.test(path) || path === "/manifest.webmanifest") {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(staleWhileRevalidate(event, request));
   }
 });
 

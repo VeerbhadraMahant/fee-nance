@@ -43,6 +43,13 @@ jobs:
       - name: Database checks
         run: npm run verify:db
 
+      # Offline mode: the service worker's caching rules, and the client that
+      # queues writes with no connection and replays them when it returns.
+      - name: Offline checks
+        run: |
+          npm run verify:sw
+          npm run verify:offline
+
       # Deliberately built without Supabase env vars: the build must never
       # depend on runtime secrets (they're read lazily at request time).
       - name: Production build
