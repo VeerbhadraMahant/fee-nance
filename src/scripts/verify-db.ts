@@ -602,6 +602,28 @@ async function main() {
       dup ?? "");
   }
 
+  console.log("\nSample data");
+  {
+    const insert = (title: string, demo: boolean, who = ALICE) =>
+      as(who, () =>
+        db.query(
+          `insert into transactions (type, title, amount, transaction_date, is_demo)
+           values ('expense', $1, 10, '2026-06-01T00:00:00Z', $2)`,
+          [title, demo],
+        ),
+      );
+    await insert("Sample coffee", true);
+    await insert("My own coffee", false);
+    await insert("Bob sample", true, BOB);
+
+    await as(ALICE, () => db.query(`delete from transactions where is_demo`));
+    const alices = await as(ALICE, () => rows<{ title: string }>(`select title from transactions where title like '%coffee%'`));
+    check("removing sample data deletes the sample rows", !alices.some((r) => r.title === "Sample coffee"));
+    check("and keeps what the person entered", alices.some((r) => r.title === "My own coffee"));
+    const bobs = await as(BOB, () => rows<{ title: string }>(`select title from transactions where title = 'Bob sample'`));
+    check("and never touches another person's rows", bobs.length === 1, `got ${bobs.length}`);
+  }
+
   console.log("\nGrants");
   {
     const anon = await fails(async () => {
