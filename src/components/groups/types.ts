@@ -1,5 +1,5 @@
 export interface GroupMember {
-  userId: { _id: string; name: string; email: string };
+  userId: { _id: string; name: string; email: string; upiId?: string };
   role: "owner" | "member";
 }
 
@@ -10,18 +10,26 @@ export interface Group {
   members: GroupMember[];
 }
 
+export type SplitType = "equal" | "custom" | "percentage" | "itemized";
+
 export interface GroupExpense {
   _id: string;
   title: string;
   amount: number;
-  splitType: string;
+  splitType: SplitType;
   incurredAt: string;
   notes?: string;
+  createdBy: string;
+  categoryId?: string;
+  paidBy: Array<{ userId: string; amount: number }>;
+  splits: Array<{ userId: string; amount?: number; percentage?: number; shareAmount: number }>;
+  lineItems: Array<{ _id?: string; label: string; amount: number; sharedBy: string[]; proportional?: boolean }>;
 }
 
 export interface MemberBalance {
   memberId: string;
   netAmount: number;
+  formerMember?: boolean;
 }
 
 export interface PairwiseSettlement {
@@ -37,4 +45,5 @@ export interface Settlement {
   amount: number;
   settledAt: string;
   note?: string;
+  createdBy: string;
 }

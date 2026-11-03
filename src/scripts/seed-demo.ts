@@ -207,17 +207,18 @@ async function main() {
     "add members",
   );
 
-  const groupExpenses: Array<{ title: string; amount: number; payer: string; days: number }> = [
-    { title: "Groceries for the flat", amount: 3450, payer: userId, days: 26 },
-    { title: "Weekend trip fuel", amount: 4200, payer: aditi, days: 19 },
-    { title: "Pizza night", amount: 1890, payer: karan, days: 11 },
-    { title: "Wi-Fi bill", amount: 1199, payer: userId, days: 4 },
+  // Shared system categories, so each member's share counts against their own budget.
+  const groupExpenses: Array<{ title: string; amount: number; payer: string; days: number; category: string }> = [
+    { title: "Groceries for the flat", amount: 3450, payer: userId, days: 26, category: "Food" },
+    { title: "Weekend trip fuel", amount: 4200, payer: aditi, days: 19, category: "Travel" },
+    { title: "Pizza night", amount: 1890, payer: karan, days: 11, category: "Food" },
+    { title: "Wi-Fi bill", amount: 1199, payer: userId, days: 4, category: "Utilities" },
   ];
   for (const e of groupExpenses) {
     const expense = check(
       await db
         .from("group_expenses")
-        .insert({ group_id: group.id, created_by: e.payer, title: e.title, amount: e.amount, split_type: "equal", incurred_at: daysAgo(e.days) })
+        .insert({ group_id: group.id, created_by: e.payer, title: e.title, amount: e.amount, split_type: "equal", incurred_at: daysAgo(e.days), category_id: cat(e.category) })
         .select("id")
         .single(),
       "insert group expense",

@@ -80,11 +80,19 @@ export async function GET(
       balances.set(toUserId, roundCurrency((balances.get(toUserId) ?? 0) - amount));
     }
 
+    // Leaving needs a settled balance, so a former member normally nets to
+    // zero and drops out here. One still carrying a balance (from before that
+    // rule) stays visible, flagged, so the group's books still add up.
+    const memberSet = new Set(memberIds);
+
     return Response.json({
-      balances: Array.from(balances.entries()).map(([memberId, netAmount]) => ({
-        memberId,
-        netAmount,
-      })),
+      balances: Array.from(balances.entries())
+        .filter(([memberId, netAmount]) => memberSet.has(memberId) || Math.abs(netAmount) >= 0.01)
+        .map(([memberId, netAmount]) => ({
+          memberId,
+          netAmount,
+          formerMember: !memberSet.has(memberId),
+        })),
       pairwiseSettlements: simplifyPairwise(balances),
     });
   } catch (error) {

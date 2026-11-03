@@ -24,6 +24,7 @@ export interface TransactionRow {
   recurring_enabled: boolean;
   recurring_frequency: "monthly" | "yearly" | null;
   recurring_next_run_at: string | null;
+  recurring_source_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +44,7 @@ export function toTransaction(row: TransactionRow) {
       enabled: row.recurring_enabled,
       frequency: opt(row.recurring_frequency),
       nextRunAt: opt(row.recurring_next_run_at),
+      sourceId: opt(row.recurring_source_id),
     },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -89,8 +91,10 @@ export interface BudgetRow {
   updated_at: string;
 }
 
-export function toBudget(row: BudgetRow) {
+/** `spent` comes from budget_spend, which counts the caller's group shares too. */
+export function toBudget(row: BudgetRow, spent?: number) {
   return {
+    ...(spent === undefined ? {} : { spent }),
     _id: row.id,
     userId: row.user_id,
     name: row.name,
@@ -139,6 +143,7 @@ export interface ProfileRef {
   id: string;
   name: string;
   email: string;
+  upi_id?: string | null;
 }
 
 export interface GroupRow {
@@ -171,6 +176,7 @@ export function toGroup(row: GroupRow) {
           _id: member.user_id,
           name: member.profiles?.name ?? "Former member",
           email: member.profiles?.email ?? "",
+          upiId: member.profiles?.upi_id ?? undefined,
         },
         role: member.role,
         joinedAt: member.joined_at,
@@ -182,7 +188,7 @@ export function toGroup(row: GroupRow) {
 
 /** The select string that produces a GroupRow with populated members. */
 export const GROUP_SELECT =
-  "id, name, created_by, invite_code, created_at, updated_at, group_members(user_id, role, joined_at, profiles(id, name, email))";
+  "id, name, created_by, invite_code, created_at, updated_at, group_members(user_id, role, joined_at, profiles(id, name, email, upi_id))";
 
 export interface GroupExpenseRow {
   id: string;
@@ -201,6 +207,7 @@ export interface GroupExpenseRow {
     proportional?: boolean;
   }>;
   extraction: { source: string; confidence?: number; extractedAt: string } | null;
+  category_id?: string | null;
   incurred_at: string;
   created_at: string;
   updated_at: string;
@@ -238,6 +245,7 @@ export function toGroupExpense(row: GroupExpenseRow) {
     })),
     lineItems: row.line_items ?? [],
     extraction: row.extraction ?? undefined,
+    categoryId: opt(row.category_id),
     incurredAt: row.incurred_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

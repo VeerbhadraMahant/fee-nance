@@ -3,12 +3,13 @@ import {
   ArrowRight,
   ChartPie,
   Receipt,
-  Repeat,
   Scale,
+  Sparkles,
   Target,
   Users,
 } from "lucide-react";
 
+import { ProductVideo } from "@/components/landing/product-video";
 import { Reveal } from "@/components/landing/reveal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,27 +24,27 @@ const FEATURES = [
   {
     icon: Users,
     title: "Split with a group",
-    body: "Equal, exact-amount or percentage splits, with support for several people paying on the same bill.",
+    body: "Split equally among whoever was there, by exact amount, by percentage, or by item — with tax and tip following what each person ordered. Several people can pay one bill.",
   },
   {
     icon: Scale,
-    title: "Settle up cleanly",
-    body: "Fee-Nance works out the shortest set of payments that clears everyone's balance, then records them.",
+    title: "Settle up in a tap",
+    body: "Fee-Nance suggests the payments that clear everyone's balance, opens your UPI app with the amount filled in, and records it once you've paid.",
   },
   {
     icon: Target,
-    title: "Budgets that hold you honest",
-    body: "Set monthly, quarterly or yearly limits — per category or overall — and watch spend against them.",
-  },
-  {
-    icon: Repeat,
-    title: "Recurring entries",
-    body: "Rent, salary, subscriptions: define them once and generate each period's entry on demand.",
+    title: "One budget, group bills included",
+    body: "Your share of a group dinner counts against your Food budget. Limits are monthly, quarterly or yearly, with a pace check against the calendar.",
   },
   {
     icon: ChartPie,
-    title: "Analytics worth reading",
-    body: "Category breakdowns, month-on-month trends and savings trajectory, all from your own data.",
+    title: "Plan, not just record",
+    body: "Goals, a 90-day cash-flow forecast, unusual-spend and duplicate-charge alerts, and an old-versus-new tax regime comparison for FY 2026-27.",
+  },
+  {
+    icon: Sparkles,
+    title: "Ask your own numbers",
+    body: "A copilot that reads your ledger, answers in plain language, and drafts entries for you to confirm. Import a bank CSV when you'd rather not type.",
   },
 ];
 
@@ -51,7 +52,7 @@ export default function Home() {
   return (
     <main className="min-h-dvh">
       {/* ── Nav ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b-[1.5px] border-border bg-background/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             href="/"
@@ -79,7 +80,7 @@ export default function Home() {
       </header>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b-[1.5px] border-border">
+      <section className="relative overflow-hidden border-b border-border">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-80 [background:radial-gradient(60%_50%_at_50%_-10%,var(--accent),transparent_65%),radial-gradient(35%_35%_at_85%_10%,var(--primary),transparent_70%)]"
@@ -112,7 +113,8 @@ export default function Home() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="w-full sm:w-auto">
-                <Link href="/login">Sign in</Link>
+                {/* A static page outside the app router, so a plain anchor. */}
+                <a href="/tour">Take the tour</a>
               </Button>
             </div>
           </Reveal>
@@ -123,6 +125,28 @@ export default function Home() {
             </p>
           </Reveal>
         </div>
+      </section>
+
+      {/* ── Product film ────────────────────────────────────────────── */}
+      <section id="film" className="mx-auto max-w-6xl px-4 pt-16 sm:px-6 sm:pt-24 lg:px-8">
+        <Reveal>
+          <div className="max-w-2xl">
+            <p className="overline">See it in 35 seconds</p>
+            <h2 className="mt-2 font-display text-3xl sm:text-4xl">
+              The whole app, no sign-up.
+            </h2>
+            <p className="measure mt-3 text-muted-foreground">
+              Logging money, budgets with pace, group splits, insights, and what
+              happens with no signal. Made-up data, no sound.{" "}
+              <a href="/tour" className="font-medium text-foreground underline underline-offset-4">
+                Want to poke at it yourself? Take the interactive tour.
+              </a>
+            </p>
+          </div>
+        </Reveal>
+        <Reveal delay={80} className="mt-8">
+          <ProductVideo />
+        </Reveal>
       </section>
 
       {/* ── Features ────────────────────────────────────────────────── */}
@@ -171,7 +195,7 @@ export default function Home() {
               size="lg"
               variant="secondary"
               asChild
-              className="mt-7 border-[1.5px] border-foreground"
+              className="mt-7 border border-foreground"
             >
               <Link href="/login">
                 Get started
@@ -183,10 +207,10 @@ export default function Home() {
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="border-t-[1.5px] border-border">
+      <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>Fee-Nance — personal and group expense tracking.</p>
-          <p>Built as a DBMS mini-project.</p>
+          <p>A student project, built in the open.</p>
         </div>
       </footer>
     </main>

@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 
 import { AuthLayout } from "@/components/auth/auth-layout";
+import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { safeNextPath } from "@/lib/safe-redirect";
 
 export const metadata: Metadata = { title: "Sign in" };
 
 const ERRORS: Record<string, string> = {
-  oauth: "Google sign-in didn't complete. Please try again.",
-  denied: "Sign-in was cancelled. Continue with Google whenever you're ready.",
+  oauth: "Sign-in didn't complete. Please try again. If you used an email link, open it in the same browser you asked for it from.",
+  denied: "Sign-in was cancelled. Try again whenever you're ready.",
   config: "Sign-in isn't configured on this server yet.",
 };
 
@@ -23,7 +24,7 @@ export default async function LoginPage({
   return (
     <AuthLayout
       title="Welcome to Fee-Nance"
-      subtitle="Sign in with your Google account. New here? The same button creates your account."
+      subtitle="Sign in with Google or your email. New here? Either way creates your account."
     >
       <div className="space-y-5">
         {error && ERRORS[error] && (
@@ -43,6 +44,14 @@ export default async function LoginPage({
         <p className="text-center text-xs text-muted-foreground">
           We only use your name, email and profile picture from Google.
         </p>
+
+        <div className="flex items-center gap-3 text-xs text-muted-foreground" role="separator" aria-label="or">
+          <span className="h-px flex-1 bg-border" />
+          or use your email
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <EmailAuthForm next={safeNextPath(next)} />
       </div>
     </AuthLayout>
   );

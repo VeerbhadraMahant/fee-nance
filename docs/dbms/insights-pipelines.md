@@ -1,3 +1,5 @@
+> **Archived (MongoDB era, before October 2026).** This describes the design from when Fee-Nance ran on MongoDB. The runtime is now Supabase Postgres; the schema of record is `supabase/migrations/`, documented in [`docs/database.md`](../database.md). Kept as DBMS coursework history.
+
 # Insights aggregation pipelines
 
 The `/insights` page is served by a single handler, `src/app/api/private/insights/route.ts`, which issues eight aggregations in parallel and folds the results in application code. Three of them use `$setWindowFields`, which is the most interesting MongoDB feature in this repository and the reason this document exists.

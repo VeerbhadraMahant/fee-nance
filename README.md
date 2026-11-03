@@ -6,7 +6,9 @@ Built with Next.js 16 (App Router) on Supabase: Postgres with row-level security
 
 ## Status
 
-This is coursework, actively being refactored. What exists today works end to end — auth, personal finance CRUD, group splits, balances, settlements and the analytics dashboards are all live against real data. What does not exist yet is documented honestly in [Known limitations](#known-limitations); the full remediation plan lives in `fee-nance-updates.md`, and the Phase 0 audit that produced it is in `docs/audit/`.
+Coursework, under active development. Auth, personal finance, group splits, balances, settlements, analytics, insights, goals, the tax planner and the copilot all work against real data, and lint, typecheck, both verify suites and the production build pass in CI.
+
+The central idea is in: your share of a group bill counts against your own budgets and totals, in the bill's category. What is unfinished is listed in [Known limitations](#known-limitations) and, per feature, in [`docs/features.md`](docs/features.md), which also says what was verified by the standing checks and what was only type-checked. The November 2026 review, with a comparison against Splitwise and Indian alternatives, is [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md). The working order is [`TODO.md`](TODO.md).
 
 ## Architecture
 
@@ -48,14 +50,14 @@ Itemized allocation works in **integer paise** and distributes the residual by t
 
 Note the inconsistency this creates: equal splits push the residual onto the last member, itemized splits use largest-remainder. Reconciling the two is backlog item M5.
 
-All four compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and reduced to a minimal set of pairwise transfers by a greedy debtor/creditor match.
+All four compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and turned into suggested payments by a greedy debtor/creditor match. That needs at most one fewer payment than there are members with a balance, but it is not guaranteed to be the smallest possible set (finding that is NP-hard).
 
 ## Tech Stack
 
 - Next.js 16 (App Router) + React 19
 - TypeScript
 - Tailwind CSS 4, Radix UI primitives, `next-themes`, `sonner`
-- Recharts, plus a hand-rolled Sankey layout in the analytics suite
+- Recharts, including its Sankey chart for the personal money-flow diagram
 - Supabase: Postgres 15+ with row-level security, Supabase Auth (Google OAuth), `@supabase/ssr`
 - Upstash Redis (optional cache)
 - Zod 4
@@ -65,8 +67,9 @@ All four compare sums with exact equality *after* rounding to 2 dp, not with an 
 ### Personal finance
 - Categories: 7 seeded system categories plus user-defined ones
 - Transactions: create, edit, delete, filter by date range and category
-- Budgets: monthly, quarterly and yearly cycles, optionally scoped to one category
-- Recurring transactions: monthly and yearly, generated on demand via `POST /api/private/transactions/recurring/run`
+- Budgets: monthly, quarterly and yearly cycles, optionally scoped to one category. Spend includes your share of group expenses, and each budget shows its pace against the calendar
+- Recurring transactions: monthly and yearly. Due entries are generated automatically once per session, month-end rules stay at month-end, and each occurrence is unique per rule and date
+- CSV import of bank statements with column mapping, a preview, and duplicate detection; CSV export
 - Income / expense summary and running balance
 
 ### Analytics
@@ -107,24 +110,37 @@ pipelines with the same windows and thresholds.
   rule, plus overlapping subscriptions (two video services, etc.).
 - **Command palette**: `⌘K` / `Ctrl+K` to jump to any page or start an action.
 
+### Copilot
+- **Financial Health Copilot** (`/copilot`): ask questions about your own money in plain language. A Gemini model calls read-only tools — snapshot, category spend, monthly trend, transaction search, budgets, goals, recurring rules, unusual activity — through your own Supabase session, so row-level security scopes everything it sees. It cannot write. Needs `GEMINI_API_KEY`
+
+### Offline and mobile
+- Installable to the home screen, and opens with no connection on any page you have visited
+- Add, edit and delete transactions, add group expenses and record payments with no connection: they're kept on the device, shown as "Waiting to sync", and sent in order when you're back online. Nothing is sent if nothing changed
+- A change the server rejects on replay is kept, with the reason, for you to retry or discard
+- Safe-area padding, 16px fields and 44px tap targets for phones
+- Details and limits: [`docs/offline.md`](docs/offline.md)
+
 ### Group expenses
 - Create a group (you become owner) or join one with an 8-character invite code
+- Leave a group once your balance is settled; an owner who leaves hands the group on
 - Multi-payer expenses: several people can have paid toward one bill
-- Equal, custom-amount, percentage and itemized splits, validated against the total
+- Equal splits among whoever shared it, plus custom-amount, percentage and itemized splits, all validated to the paisa
 - Itemized splitting: enter the lines of a bill and tick who shared each one;
-  tax and tip lines spread in proportion to what each person ordered. Optional
-  receipt scanning pre-fills the lines — who shared what is never inferred
-- Per-member balance computation
-- Simplified pairwise settlement suggestions
-- Manual settlement entries, optionally idempotent via an `idempotencyKey`
+  tax and tip lines spread in proportion to what each person ordered. Scanning a
+  photo of the bill (Gemini) pre-fills the lines — who shared what is never inferred
+- Edit or delete an expense (the person who added it, or the group owner)
+- Each expense has a category, so every member's share lands in their own budget
+- Per-member balance computation and suggested settlement payments
+- "Pay via UPI" opens your UPI app with payee and amount filled in (from the payee's UPI ID in their profile)
+- Settlements: only the payer or payee can record or delete one; idempotent by key
 
 ### Group analytics
-- Cross-group net balance Sankey (groups you owe vs groups that owe you)
+- Cross-group net position, as diverging bars (groups you owe vs groups that owe you)
 - Per-group spend timeline with stacked member bars
 - Member spend share donut and net position bars
 - Top expenses table
 - Split type breakdown
-- Settlement flow Sankey with proportional per-node flow sizing
+- Settlement history per group
 
 ### Auth
 - Google sign-in only, through Supabase Auth. The same button signs up and signs in
@@ -152,7 +168,9 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | The anon / publishable key. Public by design; row-level security protects the data |
 | `SUPABASE_SERVICE_ROLE_KEY` | seed only | Bypasses RLS. Used by `npm run seed:demo` only, never by the app. Keep it out of the browser and out of git |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | no | Upstash Redis for the cache. Leave both unset to run without a cache |
-| `RECEIPT_EXTRACTOR` | no | Selects an OCR implementation from `src/lib/receipt/registry.ts`; unset or `none` disables receipt scanning |
+| `GEMINI_API_KEY` | no | Google AI Studio key for the copilot. Unset: the copilot page says it is unavailable |
+| `GEMINI_MODEL` | no | Model id for the copilot; defaults to `gemini-3.8-flash` |
+| `RECEIPT_EXTRACTOR` | no | Empty: receipt scanning uses Gemini whenever `GEMINI_API_KEY` is set. `none` turns it off. Other values select an implementation from `src/lib/receipt/registry.ts` |
 | `LOG_LEVEL` | no | `debug`, `info`, `warn` or `error` |
 
 Google's client ID and secret live in the Supabase dashboard, not in this app's environment.
@@ -161,7 +179,7 @@ Google's client ID and secret live in the Supabase dashboard, not in this app's 
 
 ```bash
 npm install
-npm run dev            # http://localhost:3000
+npm run dev          # http://localhost:3000
 ```
 
 Sign in with Google once, then optionally fill your account with a year of demo data:
@@ -174,8 +192,12 @@ npm run seed:demo -- you@gmail.com
 
 - `npm run dev` / `build` / `start` — Next.js
 - `npm run lint`, `npm run format` — ESLint (with `--fix`)
-- `npm run verify:calc` — the pure money modules: split allocation, forecast, tax, health score, goals, recurring detection, plus route error mapping. No database needed
-- `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function and the group invariants. No Supabase project needed
+- `npm run verify:calc` — the pure money modules: split allocation, recurrence, forecast, tax, health score, goals, recurring detection, statement-import parsing, UPI links, budget pacing, plus route error mapping. No database needed
+- `npm run video:studio` — opens Remotion Studio to edit the landing-page film in `src/remotion/`
+- `npm run video:render` — renders the film to `out/fee-nance.mp4`
+- `npm run verify:sw` — runs the service worker in a sandbox and checks every offline caching rule. No browser needed
+- `npm run verify:offline` — runs the offline client against a fake network and IndexedDB: queueing, replay, repeatability, rejected changes. No browser needed
+- `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function, group invariants, group shares in the personal ledger, and expense and settlement permissions. No Supabase project needed
 
 ## Routes
 
@@ -190,6 +212,7 @@ npm run seed:demo -- you@gmail.com
 | `/analytics` | Deeper breakdowns and trajectory |
 | `/insights` | Cash-flow forecast, unusual spending, duplicate charges, unruled subscriptions |
 | `/goals`, `/tax`, `/report` | Savings goals, tax planner, printable monthly report |
+| `/copilot` | Financial Health Copilot |
 | `/profile` | Account details and preferences (reached from the account menu) |
 
 Private APIs live under `/api/private/*`. They are enumerated in `docs/private-api-reference.md`.
@@ -198,48 +221,40 @@ Private APIs live under `/api/private/*`. They are enumerated in `docs/private-a
 
 `npm run seed:demo -- <email>` fills an account that has already signed in with a year of salary, rent, groceries, subscriptions, a duplicate charge, budgets, three goals, and a "Hostel Squad" group shared with two demo friends (`aditi.rao@feenance.demo`, `karan.verma@feenance.demo`, created in Supabase Auth; they can't sign in). It refuses to touch an account that already has data unless you pass `--reset`.
 
-## Documentation Index
+## Documentation
 
-> The schema of record is now `supabase/migrations/`. Documents under `docs/` that describe MongoDB collections, aggregation pipelines or Mongo-to-relational mappings describe the design before the move to Supabase, and are kept as coursework history.
+Start at [`docs/README.md`](docs/README.md). The most useful pages:
 
-Overview:
-- `docs/what-is-fee-nance.md` — what the project is and who it is for
-- `docs/fee-nance-features.md` — full implemented-feature list
-- `docs/architecture-module-flow.md` — module and request flow
+- [`docs/features.md`](docs/features.md) — every feature and its status
+- [`docs/architecture.md`](docs/architecture.md) — modules, request flow, authorization, caching
+- [`docs/database.md`](docs/database.md) — schema, ER diagram, RLS and SQL functions
+- [`docs/private-api-reference.md`](docs/private-api-reference.md) — every API route
+- [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md) — November 2026 review and competitor comparison
+- [`docs/demo-script.md`](docs/demo-script.md), [`docs/manual-qa-checklist.md`](docs/manual-qa-checklist.md)
 
-Database:
-- `docs/DBMS.md` — consolidated DBMS write-up
-- `docs/er-diagram.md`, `docs/relational-mapping.md`
-- `docs/dbms-query-mapping.md`, `docs/mongo-relational-equivalents.md`
-- `docs/viva-notes-mongodb-vs-relational.md`
-
-API and operations:
-- `docs/private-api-reference.md`
-- `docs/insights-pipelines.md` — the `$setWindowFields` pipelines behind `/insights`
-- `docs/secrets-policy.md`
-- `docs/demo-script.md`, `docs/manual-qa-checklist.md`
-
-Phase 0 audit (read-only findings that drive the backlog):
-- `docs/audit/codebase-map.md` — every route, model and helper
-- `docs/audit/money-path.md` — where amounts are read, written and compared
-- `docs/audit/authorization.md` — per-route ownership check table
-- `docs/audit/split-allocation.md` — remainder handling
-- `docs/audit/balance-settlement.md` — query patterns and round-trips
-- `docs/audit/dead-code.md` — unused symbols and unimplemented claims
+DBMS coursework from the MongoDB period, including `sql-scripts/`, is archived in [`docs/dbms/`](docs/dbms/). The Phase 0 audit of the MongoDB codebase is in [`docs/audit/`](docs/audit/).
 
 ## Known limitations
 
-- **Money is `numeric(15,2)` in Postgres but `number` in TypeScript.** Storage is exact; arithmetic in the app still relies on `roundCurrency` after every operation. Moving the app to integer paise behind a `Money` value object is still Phase 1. Itemized splitting already works in integer paise internally.
-- **The forecast double-counts recurring expenses approximately.** Generated occurrences carry no reference to the rule that produced them, so the projection subtracts each rule's rate from the discretionary rate instead of excluding the occurrences by id. Exact over a long window, approximate over a short one; backlog item F8.
-- **Percentage splits have no explicit remainder rule.** They reject inputs whose rounded shares miss the total instead of allocating the residual.
-- **No test runner.** `verify:calc` and `verify:db` are standing checks, not a Vitest suite.
-- **Missing endpoints.** Group expenses and settlements can't be edited or deleted.
+- **Money is `numeric(15,2)` in Postgres but `number` in TypeScript.** Storage is exact and the SQL write functions compare sums exactly. Arithmetic in the app still relies on `roundCurrency`, except equal, percentage and itemized splits, which allocate in integer paise. A `Money` value object everywhere is backlog Phase 1.
+- **The forecast double-counts recurring expenses approximately.** Generated occurrences now link to their rule (`recurring_source_id`), but the forecast still subtracts each rule's rate from the discretionary rate rather than excluding occurrences by id. Exact over a long window, approximate over a short one; backlog F8.
+- **Recurring entries appear when the app is next opened.** There is no background scheduler; a rule that fell due while nobody opened the app is generated, with its correct dates, on the next visit.
+- **Group shares count as spending on the day the expense happened, in its category.** Expenses with no category land under "Uncategorized". If you also log group spending as personal transactions, turn the option off in Profile or it is counted twice.
+- **Settle-up suggestions are a greedy match**, at most one fewer payments than members with a balance, not guaranteed to be the smallest set (finding that is NP-hard).
+- **Statement import** reads CSV only (no PDF), up to 500 rows at a time, and imported rows are uncategorised.
+- **Receipt scanning, the copilot and UPI links are untested against the live services.** The code type-checks and the pure parts are covered by `verify:calc`; nobody has yet run them against Gemini or a UPI app.
+- **Offline mode is untested in a real browser.** The queueing, replay and caching logic is covered by `verify:sw`, `verify:offline` and `verify:calc`, but service worker registration, the install prompt, IndexedDB persistence and iOS storage eviction have only been reasoned about. Run the "Offline and installed" checklist in `docs/manual-qa-checklist.md` on a phone.
+- **Offline has limits.** Only transactions, group expenses and settlements can be changed offline; a group expense made offline doesn't show in balances until it syncs; there is no background sync while the app is closed; no push or email reminders. See [`docs/offline.md`](docs/offline.md).
+- **No test runner.** `verify:calc` and `verify:db` are standing checks, not a Vitest suite, and nothing exercises the routes or the UI automatically.
+- **The rate limit is per instance without Redis.** With Upstash it is shared; without it each server keeps its own count and a cold start resets it.
 - **Invite codes use Postgres `random()`**, not a cryptographic source. They are 8 characters from a 32-letter alphabet and only grant membership of one group.
 - **Redis invalidation is per user.** A write bumps the version of everyone it affects (all members, for group writes); entries otherwise expire after 5 minutes.
 
 ---
 
 ## Data Model
+
+Full detail, with the ER diagram, policies and functions, is in [`docs/database.md`](docs/database.md).
 
 The schema lives in `supabase/migrations/20261008000001_schema.sql`; the functions in `…000002_functions.sql`.
 

@@ -182,12 +182,10 @@ export function TransactionDialog({
       amount: Number(form.amount),
       categoryId: form.categoryId || undefined,
       transactionDate: `${form.transactionDate}T00:00:00.000Z`,
+      // The server schedules the next occurrence a period after this date.
       recurring: {
         enabled: form.recurringEnabled,
         frequency: form.recurringEnabled ? form.recurringFrequency : undefined,
-        nextRunAt: form.recurringEnabled
-          ? `${form.transactionDate}T00:00:00.000Z`
-          : undefined,
       },
     };
 

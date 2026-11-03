@@ -42,7 +42,7 @@
   --muted-foreground: #4a4846;
 
   /* ── Lines & focus ─────────────────────────────────────────────────────── */
-  --border: #070607;
+  --border: #d3d2ce; /* hairline: dividers, card and table edges */
   --input: #070607;
   --ring: #fc5000;
 
@@ -85,7 +85,7 @@
   --sidebar-primary-foreground: #070607;
   --sidebar-accent: #ececea;
   --sidebar-accent-foreground: #070607;
-  --sidebar-border: #070607;
+  --sidebar-border: #d3d2ce;
   --sidebar-ring: #fc5000;
 }
 
@@ -379,6 +379,64 @@
   }
   to {
     transform: translateX(300%);
+  }
+}
+
+/* ── Touch screens ─────────────────────────────────────────────────────────
+   Applies to any device whose primary pointer is a finger. */
+@media (pointer: coarse) {
+  /* iOS zooms the page when a field under 16px is focused, and doesn't zoom
+     back. Fields use text-sm (14px) for density on desktop. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* Small icon buttons (size-8, 32px) stay visually small but get a 44px
+     tap area, the minimum for reliable thumb taps. */
+  button:not([role="switch"]):not([role="radio"]):not([role="checkbox"]):not([role="tab"]),
+  [role="menuitem"] {
+    position: relative;
+  }
+  button.size-8::after,
+  button.size-9::after {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  [role="menuitem"],
+  [role="option"] {
+    min-height: 44px;
+  }
+
+  /* No 300ms double-tap-to-zoom delay on controls. */
+  a,
+  button,
+  [role="button"],
+  [role="tab"],
+  summary,
+  label {
+    touch-action: manipulation;
+  }
+}
+
+/* A phone has no hover: don't leave controls stuck in their hover look after a tap. */
+@media (hover: none) {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Installed as an app: no rubber-banding the whole page, which reads as the
+   app being a website, and it fights with sheets and the bottom nav. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
   }
 }
 

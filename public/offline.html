@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#e2e2df" />
+    <title>Offline · Fee-Nance</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      :root { color-scheme: light dark; --bg: #e2e2df; --fg: #1c1b1a; --muted: #5d5b57; --ember: #fc5000; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #070607; --fg: #f2f1ee; --muted: #a09d97; } }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center;
+        padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+        background: var(--bg); color: var(--fg);
+        font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { max-width: 26rem; }
+      .mark {
+        width: 56px; height: 56px; border-radius: 16px; background: var(--ember); color: #f7f6f2;
+        display: grid; place-items: center; font-weight: 800; font-size: 28px; margin-bottom: 20px;
+      }
+      h1 { margin: 0 0 8px; font-size: 1.6rem; line-height: 1.2; }
+      p { margin: 0 0 12px; color: var(--muted); }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+      a, button {
+        min-height: 48px; padding: 0 22px; border-radius: 999px; font: inherit; font-weight: 600;
+        display: inline-flex; align-items: center; text-decoration: none; cursor: pointer;
+        touch-action: manipulation;
+      }
+      .primary { background: var(--ember); color: #f7f6f2; border: 0; }
+      .secondary { background: transparent; color: var(--fg); border: 1.5px solid var(--fg); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">F</div>
+      <h1>You're offline</h1>
+      <p>This page hasn't been opened on this device yet, so there's nothing saved to show.</p>
+      <p>
+        Pages you've opened before still work, and anything you add while offline is kept on this
+        device and sent when you're back online.
+      </p>
+      <div class="actions">
+        <button class="primary" type="button" onclick="location.reload()">Try again</button>
+        <a class="secondary" href="/dashboard">Open dashboard</a>
+      </div>
+    </main>
+  </body>
+</html>

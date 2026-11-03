@@ -8,13 +8,19 @@ import {
   Download,
   HandCoins,
   Handshake,
+  Pencil,
   Plus,
   Receipt,
   RotateCw,
+  Smartphone,
+  Trash2,
 } from "lucide-react";
 
-import { useQuery } from "@/lib/use-query";
+import { readApiError, useQuery } from "@/lib/use-query";
 import { downloadCsv } from "@/lib/csv";
+import { upiPayLink } from "@/lib/upi";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useCurrentUser } from "@/components/providers/current-user";
 import { formatCurrency, formatDate, formatRelative, initials } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,11 +77,17 @@ function BalancesTab({
   balances,
   pairwise,
   nameOf,
+  upiOf,
+  currentUserId,
+  groupName,
   onSettle,
 }: {
   balances: MemberBalance[];
   pairwise: PairwiseSettlement[];
   nameOf: (id: string) => string;
+  upiOf: (id: string) => string | undefined;
+  currentUserId?: string;
+  groupName: string;
   onSettle: (prefill: SettlementPrefill) => void;
 }) {
   return (
@@ -84,47 +96,77 @@ function BalancesTab({
         <CardHeader>
           <CardTitle>Who owes whom</CardTitle>
           <CardDescription>
-            The shortest set of payments that clears every balance.
+            Suggested payments that clear every balance. Only the payer or the payee can
+            record one.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
           {pairwise.length ? (
             <ul className="space-y-2">
-              {pairwise.map((item, index) => (
-                <li
-                  key={`${item.fromUserId}-${item.toUserId}-${index}`}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-                    <span className="truncate font-medium">
-                      {nameOf(item.fromUserId)}
-                    </span>
-                    <ArrowRight
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                      aria-label="pays"
-                    />
-                    <span className="truncate font-medium">
-                      {nameOf(item.toUserId)}
-                    </span>
-                  </div>
-                  <span className="tabular shrink-0 font-semibold">
-                    {formatCurrency(item.amount)}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      onSettle({
-                        fromUserId: item.fromUserId,
-                        toUserId: item.toUserId,
-                        amount: item.amount,
-                      })
-                    }
+              {pairwise.map((item, index) => {
+                const involved =
+                  item.fromUserId === currentUserId || item.toUserId === currentUserId;
+                const payeeUpi = upiOf(item.toUserId);
+                const iPay = item.fromUserId === currentUserId;
+
+                return (
+                  <li
+                    key={`${item.fromUserId}-${item.toUserId}-${index}`}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"
                   >
-                    Settle
-                  </Button>
-                </li>
-              ))}
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                      <span className="truncate font-medium">
+                        {nameOf(item.fromUserId)}
+                      </span>
+                      <ArrowRight
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                        aria-label="pays"
+                      />
+                      <span className="truncate font-medium">
+                        {nameOf(item.toUserId)}
+                      </span>
+                    </div>
+                    <span className="tabular shrink-0 font-semibold">
+                      {formatCurrency(item.amount)}
+                    </span>
+                    {iPay && payeeUpi && (
+                      <Button size="sm" asChild>
+                        <a
+                          href={upiPayLink({
+                            upiId: payeeUpi,
+                            payeeName: nameOf(item.toUserId),
+                            amount: item.amount,
+                            note: `Fee-Nance: ${groupName}`,
+                          })}
+                        >
+                          <Smartphone className="size-3.5" />
+                          Pay via UPI
+                        </a>
+                      </Button>
+                    )}
+                    {involved && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          onSettle({
+                            fromUserId: item.fromUserId,
+                            toUserId: item.toUserId,
+                            amount: item.amount,
+                          })
+                        }
+                      >
+                        {iPay ? "Mark paid" : "Mark received"}
+                      </Button>
+                    )}
+                    {iPay && !payeeUpi && (
+                      <p className="w-full text-xs text-muted-foreground">
+                        {nameOf(item.toUserId)} hasn&rsquo;t added a UPI ID to their profile yet.
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <EmptyState
@@ -164,6 +206,11 @@ function BalancesTab({
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {name}
+                      {entry.formerMember && (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                          left the group
+                        </span>
+                      )}
                     </span>
                     {/* Worded badge — the sign is never colour-only. */}
                     <Badge variant={settled ? "outline" : positive ? "success" : "destructive"}>
@@ -198,11 +245,19 @@ const SPLIT_LABEL: Record<string, string> = {
 
 function ExpensesTab({
   expenses,
+  nameOf,
+  canChange,
   onCreate,
+  onEdit,
+  onDelete,
   onExport,
 }: {
   expenses: GroupExpense[];
+  nameOf: (id: string) => string;
+  canChange: (expense: GroupExpense) => boolean;
   onCreate: () => void;
+  onEdit: (expense: GroupExpense) => void;
+  onDelete: (expense: GroupExpense) => void;
   onExport: () => void;
 }) {
   if (!expenses.length) {
@@ -249,6 +304,9 @@ function ExpensesTab({
                 <p className="truncate font-medium">{expense.title}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatDate(expense.incurredAt, "short")}
+                  {expense.paidBy.length
+                    ? ` · paid by ${expense.paidBy.map((p) => nameOf(p.userId).split(" ")[0]).join(", ")}`
+                    : ""}
                   {expense.notes ? ` · ${expense.notes}` : ""}
                 </p>
               </div>
@@ -258,6 +316,32 @@ function ExpensesTab({
               <span className="tabular shrink-0 font-semibold">
                 {formatCurrency(expense.amount)}
               </span>
+              {canChange(expense) && (
+                <div className="flex shrink-0 items-center">
+                  <Tooltip content="Edit expense">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground"
+                      onClick={() => onEdit(expense)}
+                    >
+                      <Pencil className="size-3.5" />
+                      <span className="sr-only">Edit {expense.title}</span>
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="Delete expense">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDelete(expense)}
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span className="sr-only">Delete {expense.title}</span>
+                    </Button>
+                  </Tooltip>
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -271,11 +355,15 @@ function ExpensesTab({
 function SettlementsTab({
   settlements,
   nameOf,
+  currentUserId,
   onCreate,
+  onDelete,
 }: {
   settlements: Settlement[];
   nameOf: (id: string) => string;
+  currentUserId?: string;
   onCreate: () => void;
+  onDelete: (settlement: Settlement) => void;
 }) {
   if (!settlements.length) {
     return (
@@ -316,6 +404,22 @@ function SettlementsTab({
             <span className="tabular shrink-0 font-semibold text-success">
               {formatCurrency(settlement.amount)}
             </span>
+            {currentUserId &&
+              [settlement.fromUserId, settlement.toUserId, settlement.createdBy].includes(
+                currentUserId,
+              ) && (
+                <Tooltip content="Delete settlement">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(settlement)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span className="sr-only">Delete settlement</span>
+                  </Button>
+                </Tooltip>
+              )}
           </li>
         ))}
       </ul>
@@ -327,8 +431,11 @@ function SettlementsTab({
 
 export function GroupDetail({ groupId }: { groupId: string }) {
   const [expenseOpen, setExpenseOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<GroupExpense | null>(null);
   const [settleOpen, setSettleOpen] = React.useState(false);
   const [prefill, setPrefill] = React.useState<SettlementPrefill | null>(null);
+  const currentUser = useCurrentUser();
+  const { confirm, confirmDialog } = useConfirm();
 
   const groupQuery = useQuery<{ group: Group }>(`/api/private/groups/${groupId}`);
   const expensesQuery = useQuery<{ expenses: GroupExpense[] }>(
@@ -354,6 +461,17 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   const nameOf = React.useCallback(
     (id: string) => nameMap.get(id) ?? "Former member",
     [nameMap],
+  );
+  const upiOf = React.useCallback(
+    (id: string) => members.find((m) => m.userId._id === id)?.userId.upiId,
+    [members],
+  );
+  const isOwner = members.some(
+    (m) => m.userId._id === currentUser?.id && m.role === "owner",
+  );
+  const canChange = React.useCallback(
+    (expense: GroupExpense) => isOwner || expense.createdBy === currentUser?.id,
+    [isOwner, currentUser],
   );
 
   const handleExportExpenses = React.useCallback(() => {
@@ -385,6 +503,52 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   const openSettle = (next: SettlementPrefill | null) => {
     setPrefill(next);
     setSettleOpen(true);
+  };
+
+  const openExpense = (expense: GroupExpense | null) => {
+    setEditing(expense);
+    setExpenseOpen(true);
+  };
+
+  const handleDeleteExpense = async (expense: GroupExpense) => {
+    const ok = await confirm({
+      title: `Delete "${expense.title}"?`,
+      description: `This removes ${formatCurrency(expense.amount)} from the group and changes everyone's balances. It can't be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const response = await fetch(`/api/private/groups/${groupId}/expenses/${expense._id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      toast.error(await readApiError(response, "Couldn't delete this expense"));
+      return;
+    }
+    toast.success(`"${expense.title}" deleted`);
+    refreshAll();
+  };
+
+  const handleDeleteSettlement = async (settlement: Settlement) => {
+    const ok = await confirm({
+      title: "Delete this settlement?",
+      description: `${nameOf(settlement.fromUserId)} → ${nameOf(settlement.toUserId)}, ${formatCurrency(settlement.amount)}. The balance it cleared comes back.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const response = await fetch(
+      `/api/private/groups/${groupId}/settlements/${settlement._id}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      toast.error(await readApiError(response, "Couldn't delete this settlement"));
+      return;
+    }
+    toast.success("Settlement deleted");
+    refreshAll();
   };
 
   if (groupQuery.isLoading) {
@@ -437,7 +601,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
               <RotateCw className="size-4" />
             </Button>
             <InviteCode code={group.inviteCode} />
-            <Button onClick={() => setExpenseOpen(true)}>
+            <Button onClick={() => openExpense(null)}>
               <Plus className="size-4" />
               Add expense
             </Button>
@@ -480,6 +644,9 @@ export function GroupDetail({ groupId }: { groupId: string }) {
               balances={balances}
               pairwise={pairwise}
               nameOf={nameOf}
+              upiOf={upiOf}
+              currentUserId={currentUser?.id}
+              groupName={group.name}
               onSettle={openSettle}
             />
           )}
@@ -491,7 +658,11 @@ export function GroupDetail({ groupId }: { groupId: string }) {
           ) : (
             <ExpensesTab
               expenses={expenses}
-              onCreate={() => setExpenseOpen(true)}
+              nameOf={nameOf}
+              canChange={canChange}
+              onCreate={() => openExpense(null)}
+              onEdit={openExpense}
+              onDelete={handleDeleteExpense}
               onExport={handleExportExpenses}
             />
           )}
@@ -504,7 +675,9 @@ export function GroupDetail({ groupId }: { groupId: string }) {
             <SettlementsTab
               settlements={settlements}
               nameOf={nameOf}
+              currentUserId={currentUser?.id}
               onCreate={() => openSettle(null)}
+              onDelete={handleDeleteSettlement}
             />
           )}
         </TabsContent>
@@ -515,6 +688,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         onOpenChange={setExpenseOpen}
         groupId={groupId}
         members={members}
+        expense={editing}
         onSaved={refreshAll}
       />
       <SettlementDialog
@@ -525,6 +699,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         prefill={prefill}
         onSaved={refreshAll}
       />
+      {confirmDialog}
     </div>
   );
 }

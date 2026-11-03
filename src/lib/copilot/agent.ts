@@ -1,15 +1,18 @@
 /**
  * The copilot's reasoning loop: send the conversation to Gemini with the
- * read-only tool set, run whatever tools it asks for, feed the results back,
- * and repeat until it answers in prose. Plain REST — no SDK dependency.
+ * tool set, run whatever tools it asks for, feed the results back, and
+ * repeat until it answers in prose. Drafts proposed along the way are
+ * returned beside the reply for the user to confirm. Plain REST — no SDK
+ * dependency.
  */
 
 import { env } from "@/lib/env";
+import { fetchGemini } from "@/lib/gemini-call";
 import { logger } from "@/lib/logger";
 import { HttpError } from "@/lib/route";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 
-import { runTool, TOOL_DECLARATIONS } from "./tools";
+import { runTool, TOOL_DECLARATIONS, type TransactionDraft } from "./tools";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -35,6 +38,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_goals: "Reviewing your goals",
   get_recurring_rules: "Looking at recurring payments",
   get_unusual_activity: "Scanning for unusual activity",
+  get_group_balances: "Checking your group balances",
+  draft_transaction: "Drafting an entry for you to confirm",
 };
 
 function systemPrompt() {
@@ -45,7 +50,8 @@ How to work:
 - For broad questions ("how am I doing?"), start with get_financial_snapshot, then dig into whatever stands out.
 - Be specific and actionable: name the categories, merchants, amounts and dates behind each point, and give concrete next steps with rupee impact where you can.
 - Keep answers tight: short paragraphs or bullets, markdown allowed, no filler. Lead with the answer.
-- You are read-only. You cannot create, edit or delete anything; if asked, explain which page of the app to use.
+- Personal totals include the user's share of group expenses (unless they turned that off). For who owes whom across groups, use get_group_balances.
+- You cannot save, edit or delete anything. When the user asks to add an income or expense, call draft_transaction: the app shows it as a draft they confirm with one tap. Say it is ready to confirm; never claim it was saved. For other changes (budgets, groups, goals), explain which page of the app to use.
 - You give general financial guidance, not regulated investment, legal or tax advice; mention that briefly only when it matters.
 - Stay on personal finance and this app. Politely decline anything else.`;
 }
@@ -54,39 +60,20 @@ async function callGemini(contents: Content[]) {
   const key = env.GEMINI_API_KEY;
   if (!key) throw new HttpError(503, "The copilot isn't configured yet (missing GEMINI_API_KEY).");
 
-  const body = JSON.stringify({
+  const response = await fetchGemini(key, {
     systemInstruction: { parts: [{ text: systemPrompt() }] },
     contents,
     tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
     generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+  }).catch((error: unknown) => {
+    logger.error("Gemini unreachable", error instanceof Error ? error : new Error(String(error)));
+    throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
   });
-
-  // The primary model is often overloaded (503) or slow; fall through to the fallback.
-  let response: Response | undefined;
-  for (const model of [env.GEMINI_MODEL, env.GEMINI_FALLBACK_MODEL]) {
-    response = undefined;
-    try {
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body,
-          signal: AbortSignal.timeout(30_000),
-        },
-      );
-    } catch (error) {
-      logger.error(`Gemini ${model} request failed`, error);
-      continue;
-    }
-    if (response.ok || ![429, 500, 503].includes(response.status)) break;
-    logger.error(`Gemini ${model} unavailable`, new Error(`${response.status}`));
-  }
-  if (!response) throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
 
   if (!response.ok) {
     logger.error("Gemini request failed", new Error(`${response.status} ${(await response.text()).slice(0, 300)}`));
     if (response.status === 429) throw new HttpError(429, "The copilot is busy right now. Try again in a moment.");
+    if (response.status === 503) throw new HttpError(503, "Google's AI service is overloaded right now. Try again in a minute.");
     throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
   }
   return (await response.json()) as { candidates?: Array<{ content?: Content; finishReason?: string }> };
@@ -98,6 +85,7 @@ export async function runCopilot(supabase: SupabaseServerClient, messages: ChatM
     parts: [{ text: m.content }],
   }));
   const steps: string[] = [];
+  const drafts: TransactionDraft[] = [];
 
   for (let i = 0; i < MAX_STEPS; i += 1) {
     const data = await callGemini(contents);
@@ -106,7 +94,11 @@ export async function runCopilot(supabase: SupabaseServerClient, messages: ChatM
 
     if (!calls.length) {
       const reply = parts.map((p) => p.text ?? "").join("").trim();
-      return { reply: reply || "I couldn't put an answer together for that. Try rephrasing it.", steps };
+      return {
+        reply: reply || "I couldn't put an answer together for that. Try rephrasing it.",
+        steps,
+        drafts,
+      };
     }
 
     // Keep the model turn verbatim (thought signatures included) so the
@@ -118,7 +110,10 @@ export async function runCopilot(supabase: SupabaseServerClient, messages: ChatM
         const { id, name, args } = part.functionCall!;
         steps.push(TOOL_LABELS[name] ?? name);
         try {
-          return { functionResponse: { id, name, response: { result: await runTool(supabase, name, args ?? {}) } } };
+          const result = await runTool(supabase, name, args ?? {});
+          const draft = (result as { draft?: TransactionDraft } | null)?.draft;
+          if (draft) drafts.push(draft);
+          return { functionResponse: { id, name, response: { result } } };
         } catch (error) {
           logger.error(`Copilot tool ${name} failed`, error);
           return { functionResponse: { id, name, response: { error: "That lookup failed." } } };
@@ -128,5 +123,9 @@ export async function runCopilot(supabase: SupabaseServerClient, messages: ChatM
     contents.push({ role: "user", parts: responses });
   }
 
-  return { reply: "That took more digging than I could finish. Try asking something narrower.", steps };
+  return {
+    reply: "That took more digging than I could finish. Try asking something narrower.",
+    steps,
+    drafts,
+  };
 }

@@ -1,71 +1,65 @@
-# Demo Script (Submission Walkthrough)
+# Demo script
 
-Use this script during project demo/viva.
+A walkthrough of about 15 minutes for a demo or viva.
 
-## 0. Pre-demo Setup
+## Before the demo
 
-Run:
+The quickest way to fill an account is in the app: sign in, choose "Add sample data, then tour" in the welcome dialog (or Profile → Getting started). The script below seeds a richer year, including a group, from the command line.
 
 ```bash
 npm install
-npm run seed
-npm run dev
+npm run dev                              # http://localhost:3000
 ```
 
-Open: `http://localhost:3000`
+1. Sign in once with your Google account so the profile exists.
+2. Fill it with a year of demo data:
 
-Demo accounts:
-- alex@feenance.demo / Demo@1234
-- riya@feenance.demo / Demo@1234
-- kabir@feenance.demo / Demo@1234
+   ```bash
+   npm run seed:demo -- you@gmail.com            # add --reset to wipe and reseed
+   ```
 
-## 1. Authentication (2-3 mins)
+   This creates salary, rent, groceries, subscriptions, a deliberate duplicate Swiggy charge, three budgets, three goals, and a "Hostel Squad" group shared with two demo friends (`aditi.rao@feenance.demo`, `karan.verma@feenance.demo`, who cannot sign in).
+3. Set `GEMINI_API_KEY` in `.env.local` if you will show the copilot.
 
-1. Open `/login` and sign in as `alex@feenance.demo`.
-2. Show protected behavior by logging out and revisiting `/dashboard` (redirect to `/login`).
-3. Open `/register` and point out Google sign-in option (if env is configured).
+## 1. Sign-in and protection (1 min)
 
-## 2. Personal Finance Flow (4-5 mins)
+1. Open `/dashboard` while signed out: you are sent to `/login`.
+2. Sign in with Google. A `profiles` row is created by a database trigger on first sign-in.
 
-1. Navigate to `/finance`.
-2. Show seeded transactions and budgets loaded immediately.
-3. Create one expense transaction (e.g., "Coffee", INR 180).
-4. Edit and then delete that transaction.
-5. Create one budget and then delete it.
-6. Show monthly summary, category-wise summary, and running balance update.
-7. Trigger recurring generation from dashboard (`Run Recurring`) and refresh summary.
+## 2. Personal finance (3 min)
 
-## 3. Group Expense Flow (5-6 mins)
+1. `/dashboard`: balance, trends, category breakdown, health score.
+2. `/finance`: add an expense ("Coffee", ₹180), edit it, delete it.
+3. Budgets tab: show spend against the Food and Shopping budgets.
+4. Point out the recurring rules (salary, rent) and generate due entries.
 
-1. Navigate to `/groups` and open `Weekend Crew`.
-2. Show existing members, expenses, balances, and settlements.
-3. Add a new shared expense using custom or percentage split.
-4. Highlight strict validations (payer/split totals must match expense total).
-5. Record a manual settlement and show updated pairwise balances.
+## 3. Groups and splits (4 min)
 
-## 4. API/Validation and Security (2-3 mins)
+1. `/groups` → Hostel Squad: members, expenses, balances, suggested settlements.
+2. Add an **itemized** expense: a pizza shared by two, a dessert for one, and an 18% GST line marked proportional. Show how GST follows what each person ordered.
+3. Try a custom split whose amounts do not add up: the form, the route and the SQL function all reject it.
+4. Record a settlement and watch the balances update.
 
-1. Mention all `/api/private/*` routes are session-protected.
-2. Show one invalid payload scenario causing structured `422` response.
-3. Explain idempotency key support for settlement writes.
+## 4. Insights and planning (3 min)
 
-## 5. DBMS Mapping Deliverables (4-5 mins)
+1. `/insights`: the duplicate Swiggy charge, outliers such as the new phone, category drift and the 90-day forecast.
+2. `/tax`: old versus new regime, with deductions (ELSS SIP, health insurance) pre-filled from transaction titles.
+3. `/goals`: projections against the real monthly surplus, and the what-if slider.
+4. `/report`: the monthly statement, and print to PDF.
 
-1. Show `docs/er-diagram.md`.
-2. Show `docs/relational-mapping.md` (3NF mapping).
-3. Show `sql-scripts/` folder with DDL/DML/joins/subqueries/GROUP BY/HAVING.
-4. Run or show output of:
+## 5. Copilot (2 min)
 
-```bash
-npm run dbms:report
-```
+Ask "How am I doing this month?" and "Which subscriptions overlap?" Point out the tool steps it lists: every answer comes from read-only queries scoped by row-level security.
 
-5. Open `docs/dbms-report-output.json` to prove reproducible join/subquery/group reports.
-6. Briefly explain trigger/procedure/function/cursor equivalents via:
-   - `docs/mongo-relational-equivalents.md`
+## 6. Engineering (2 min)
 
-## 6. Closing Points (1 min)
+1. Row-level security: `supabase/migrations/20261008000001_schema.sql`, and the three-layer model in [`architecture.md`](architecture.md).
+2. Atomic group writes: `create_group_expense` in the functions migration.
+3. Run the checks:
 
-- Runtime DB: MongoDB with Mongoose.
-- Relational SQL included for academic DBMS mapping.
-- Private-auth app with complete MVP flows and tested demo data.
+   ```bash
+   npm run verify:calc
+   npm run verify:db
+   ```
+
+4. Schema and ER diagram: [`database.md`](database.md). DBMS coursework from the MongoDB period: [`dbms/`](dbms/).

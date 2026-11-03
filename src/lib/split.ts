@@ -31,12 +31,6 @@ export interface ComputedShare {
   shareAmount: number;
 }
 
-export interface PairwiseBalance {
-  fromUserId: string;
-  toUserId: string;
-  amount: number;
-}
-
 function assertTotals(total: number, computedTotal: number, fieldName: string) {
   if (roundCurrency(total) !== roundCurrency(computedTotal)) {
     throw new Error(`${fieldName} total must exactly match expense total`);
@@ -79,9 +73,9 @@ export function validatePayers(totalAmount: number, payers: PayerInput[]) {
  * one. Every one of them is a chance to lose a paisa.
  *
  * These two helpers work in integer paise and hand out the residual by the
- * largest-remainder rule, so the parts always sum to the whole exactly. That
- * is the discipline backlog item M1 wants applied to the entire codebase; it
- * starts here because this is where the arithmetic is densest.
+ * largest-remainder rule, so the parts always sum to the whole exactly.
+ * Equal and percentage splits use the same two helpers; custom splits take
+ * the caller's amounts as given and only check the sum.
  */
 
 function toPaise(amount: number) {
@@ -266,22 +260,6 @@ export function computeShares(
     return computeItemizedShares(totalAmount, lineItems, memberIds);
   }
 
-  if (splitType === "equal") {
-    const perMember = roundCurrency(totalAmount / memberIds.length);
-    let running = 0;
-
-    return memberIds.map((userId, index) => {
-      const amount =
-        index === memberIds.length - 1 ? roundCurrency(totalAmount - running) : perMember;
-      running = roundCurrency(running + amount);
-      return { userId, shareAmount: amount };
-    });
-  }
-
-  if (!splits.length) {
-    throw new Error("Split details are required for custom and percentage splits");
-  }
-
   for (const split of splits) {
     if (!memberSet.has(split.userId)) {
       throw new Error("Split contains a user who is not in the group");
@@ -289,6 +267,25 @@ export function computeShares(
   }
 
   assertDistinctUsers(splits, "Split list");
+
+  if (splitType === "equal") {
+    // `splits` names the participants; none listed means the whole group.
+    // Same paise discipline as itemized: the spare paise go out one each in
+    // id order, so the parts always sum to the total exactly.
+    const participants = splits.length
+      ? memberIds.filter((userId) => splits.some((split) => split.userId === userId))
+      : memberIds;
+    const allocation = allocateEvenly(toPaise(totalAmount), participants);
+
+    return participants.map((userId) => ({
+      userId,
+      shareAmount: fromPaise(allocation.get(userId) ?? 0),
+    }));
+  }
+
+  if (!splits.length) {
+    throw new Error("Split details are required for custom and percentage splits");
+  }
 
   if (splitType === "custom") {
     const computed = splits.map((split) => ({
@@ -302,11 +299,6 @@ export function computeShares(
     return computed;
   }
 
-  const computed = splits.map((split) => ({
-    userId: split.userId,
-    shareAmount: roundCurrency((totalAmount * (split.percentage ?? 0)) / 100),
-  }));
-
   const percentageTotal = roundCurrency(
     splits.reduce((acc, split) => acc + (split.percentage ?? 0), 0),
   );
@@ -315,63 +307,20 @@ export function computeShares(
     throw new Error("Percentage split must total 100");
   }
 
+  // Largest remainder in paise, as for proportional line items: 33.33% /
+  // 33.33% / 33.34% of ₹100.01 allocates instead of missing by a paisa.
+  const allocation = allocateProportionally(
+    toPaise(totalAmount),
+    new Map(splits.map((split) => [split.userId, split.percentage ?? 0])),
+  );
+
+  const computed = splits.map((split) => ({
+    userId: split.userId,
+    shareAmount: fromPaise(allocation.get(split.userId) ?? 0),
+  }));
+
   const amountTotal = roundCurrency(computed.reduce((acc, split) => acc + split.shareAmount, 0));
   assertTotals(totalAmount, amountTotal, "Percentage split");
 
   return computed;
-}
-
-export function computePairwiseBalances(
-  memberIds: string[],
-  shares: ComputedShare[],
-  payers: PayerInput[],
-): PairwiseBalance[] {
-  const balanceMap = new Map(memberIds.map((id) => [id, 0]));
-
-  for (const share of shares) {
-    balanceMap.set(share.userId, roundCurrency((balanceMap.get(share.userId) ?? 0) - share.shareAmount));
-  }
-
-  for (const payer of payers) {
-    balanceMap.set(payer.userId, roundCurrency((balanceMap.get(payer.userId) ?? 0) + payer.amount));
-  }
-
-  const creditors = Array.from(balanceMap.entries())
-    .filter(([, amount]) => amount > 0)
-    .map(([userId, amount]) => ({ userId, amount }));
-
-  const debtors = Array.from(balanceMap.entries())
-    .filter(([, amount]) => amount < 0)
-    .map(([userId, amount]) => ({ userId, amount: Math.abs(amount) }));
-
-  const pairwise: PairwiseBalance[] = [];
-  let i = 0;
-  let j = 0;
-
-  while (i < debtors.length && j < creditors.length) {
-    const debtor = debtors[i];
-    const creditor = creditors[j];
-    const settlementAmount = roundCurrency(Math.min(debtor.amount, creditor.amount));
-
-    if (settlementAmount > 0) {
-      pairwise.push({
-        fromUserId: debtor.userId,
-        toUserId: creditor.userId,
-        amount: settlementAmount,
-      });
-    }
-
-    debtor.amount = roundCurrency(debtor.amount - settlementAmount);
-    creditor.amount = roundCurrency(creditor.amount - settlementAmount);
-
-    if (debtor.amount <= 0.01) {
-      i += 1;
-    }
-
-    if (creditor.amount <= 0.01) {
-      j += 1;
-    }
-  }
-
-  return pairwise;
 }

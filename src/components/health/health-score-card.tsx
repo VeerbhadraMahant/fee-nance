@@ -44,7 +44,10 @@ export function ScoreRing({ score, band, size = 136 }: { score: number; band: He
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="tabular font-display text-4xl normal-case leading-none tracking-normal">
+        <span
+          className="tabular font-display normal-case leading-none tracking-normal"
+          style={{ fontSize: Math.round(size * 0.24) }}
+        >
           {Math.round(score)}
         </span>
         <span className="text-2xs text-muted-foreground">out of 100</span>
