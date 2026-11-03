@@ -35,11 +35,18 @@ export const metadata: Metadata = {
   },
   description:
     "Track your income and expenses, split costs with groups, and settle up — in one place.",
+  // Home-screen install on iOS, which ignores most of the manifest.
+  appleWebApp: { capable: true, title: "Fee-Nance", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Lets the layout extend under a notch or the home indicator; the nav and
+  // pages pad themselves with env(safe-area-inset-*).
+  viewportFit: "cover",
   // No maximumScale / userScalable:false — pinch zoom stays available.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#e2e2df" },
