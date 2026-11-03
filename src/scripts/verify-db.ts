@@ -547,6 +547,61 @@ async function main() {
     check("UPI IDs are validated", badUpi !== null);
   }
 
+  console.log("\nOffline replay");
+  {
+    const [{ create_group: groupId }] = await as(ALICE, () =>
+      rows<{ create_group: string }>(`select create_group('Replay trip')`),
+    );
+    const [{ invite_code: code }] = await as(ALICE, () =>
+      rows<{ invite_code: string }>(`select invite_code from groups where id = $1`, [groupId]),
+    );
+    await as(BOB, () => db.query(`select join_group($1)`, [code]));
+
+    const create = (who: string, key: string | null) =>
+      as(who, () =>
+        rows<{ create_group_expense: string }>(
+          `select create_group_expense(p_group_id => $1, p_title => 'Taxi', p_notes => null, p_amount => 300,
+             p_split_type => 'equal', p_payers => $2::jsonb, p_splits => $3::jsonb, p_client_key => $4)`,
+          [groupId, JSON.stringify([{ userId: who, amount: 300 }]),
+            JSON.stringify([{ userId: ALICE, shareAmount: 150 }, { userId: BOB, shareAmount: 150 }]), key],
+        ),
+      );
+
+    const first = (await create(ALICE, "offline-key-0001"))[0]!.create_group_expense;
+    const again = (await create(ALICE, "offline-key-0001"))[0]!.create_group_expense;
+    check("replaying a queued expense returns the original", first === again, `${first} vs ${again}`);
+    const stored = await rows(`select * from group_expenses where group_id = $1`, [groupId]);
+    check("and writes it only once", stored.length === 1, `got ${stored.length}`);
+    const splits = await rows(`select * from group_expense_splits where expense_id = $1`, [first]);
+    check("with one set of splits", splits.length === 2, `got ${splits.length}`);
+
+    const bobs = (await create(BOB, "offline-key-0001"))[0]!.create_group_expense;
+    check("the same key from someone else is a different expense", bobs !== first);
+
+    const unkeyedA = (await create(ALICE, null))[0]!.create_group_expense;
+    const unkeyedB = (await create(ALICE, null))[0]!.create_group_expense;
+    check("expenses without a key are never merged", unkeyedA !== unkeyedB);
+
+    const stranger = await fails(() => create(CAROL, "offline-key-0001"));
+    check("a replay can't be used to reach a group you're not in",
+      stranger?.includes("group_not_found") ?? false, stranger ?? "");
+
+    // A transaction created offline carries its own id.
+    const id = "11111111-1111-4111-8111-111111111111";
+    const insert = () =>
+      as(ALICE, () =>
+        db.query(
+          `insert into transactions (id, type, title, amount, transaction_date)
+           values ($1, 'expense', 'Chai', 20, '2026-06-01T00:00:00Z')`,
+          [id],
+        ),
+      );
+    await insert();
+    const dup = await fails(insert);
+    check("replaying a queued transaction hits the primary key", dup !== null && /duplicate|unique/i.test(dup),
+      dup ?? "");
+  }
+
   console.log("\nGrants");
   {
     const anon = await fails(async () => {

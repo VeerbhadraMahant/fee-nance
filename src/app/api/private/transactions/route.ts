@@ -8,6 +8,9 @@ import { firstRunAfter } from "@/lib/recurrence";
 import { handleRouteError, must, optionalParam, selectAll } from "@/lib/route";
 
 const transactionSchema = z.object({
+  // Chosen by the client for entries made offline: the replay of a queued
+  // create then hits the primary key (a 409) instead of inserting twice.
+  id: z.string().uuid().optional(),
   type: z.enum(["income", "expense"]),
   title: z.string().trim().min(2).max(100),
   notes: z.string().trim().max(500).optional(),
@@ -130,6 +133,7 @@ export async function POST(request: Request) {
       await supabase
         .from("transactions")
         .insert({
+          ...(payload.id ? { id: payload.id } : {}),
           user_id: userId,
           type: payload.type,
           title: payload.title,

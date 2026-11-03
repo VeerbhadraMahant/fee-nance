@@ -103,6 +103,7 @@ export async function POST(request: Request, { params }: Params) {
         p_group_id: groupId,
         ...toGroupExpenseArgs(payload, memberIds),
         p_incurred_at: payload.incurredAt ?? new Date().toISOString(),
+        p_client_key: payload.clientKey ?? null,
       }),
     ) as string;
 

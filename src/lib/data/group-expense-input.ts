@@ -48,6 +48,9 @@ export const groupExpenseSchema = z
     // A shared expense category (Food, Travel…), so each member's share
     // counts against their own budget for it.
     categoryId: z.string().uuid().nullable().optional(),
+    // Idempotency for entries made offline: replaying a queued create returns
+    // the expense already written instead of adding a second.
+    clientKey: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9_.:-]+$/).optional(),
     incurredAt: z.string().datetime().optional(),
   })
   .refine(
