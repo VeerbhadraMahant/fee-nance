@@ -1,3 +1,5 @@
+> **Archived (MongoDB era, before October 2026).** This describes the design from when Fee-Nance ran on MongoDB. The runtime is now Supabase Postgres; the schema of record is `supabase/migrations/`, documented in [`docs/database.md`](../database.md). Kept as DBMS coursework history.
+
 # Fee-Nance — Relational Mapping & Normalization
 
 > **Academic context:** Fee-Nance uses MongoDB as its runtime database. This document provides the equivalent relational schema derived from the MongoDB data model, demonstrates normalization through 3NF, and documents index strategy — as required for DBMS mini-project deliverables.

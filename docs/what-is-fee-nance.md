@@ -1,83 +1,43 @@
 # What is Fee-Nance?
 
-Fee-Nance is a full-stack web application for personal finance tracking and group expense management. It is designed to help users understand where their money goes, plan spending through budgets, and settle shared costs in groups with clear, auditable calculations.
+Fee-Nance is a web app for personal finance and shared expenses, built for Indian users and INR.
 
-## In One Line
+## The problem
 
-Fee-Nance is a practical money management app that combines individual budgeting and shared expense splitting in a single, secure platform.
+Most people track their own spending in one app and split group bills in another. Neither view is complete: the budgeting app never sees the ₹1,200 that was your share of a group dinner, and the splitting app knows nothing about your budget. Splitwise, the default splitter, now limits free users to a handful of expenses a day and charges for receipt scanning and charts.
 
-## Why Fee-Nance Exists
+## The idea
 
-Many users manage personal expenses in one app and group expenses in another, which creates friction and incomplete financial visibility. Fee-Nance solves this by combining both workflows:
+One ledger. Your personal income and expenses, and your share of every group bill, count towards the same budgets, totals and insights. What you *paid* for a group and what you *owe* stay distinct, so lending money to friends doesn't look like spending it.
 
-- Personal finance tracking for day-to-day money control.
-- Group expense collaboration for trips, roommates, events, or shared projects.
-- A unified dashboard for quick financial insight.
+## Who it's for
 
-## Core Capabilities
+- Students and young professionals sharing a flat, a hostel room or a trip
+- Anyone who wants budgeting and bill-splitting without running two apps
+- People filing Indian income tax who want to see which regime suits them
 
-### 1. Personal Finance Management
+## What it does
 
-- Create and manage transactions (income and expense).
-- Organize spending with system and custom categories.
-- Set budgets across monthly, quarterly, and yearly cycles.
-- View summary insights like totals, category breakdown, and balance.
-- Generate recurring entries for repeating transactions.
+- **Track**: income, expenses, categories, budgets (monthly, quarterly, yearly) and recurring entries such as rent, salary and subscriptions.
+- **Split**: groups with invite codes, several payers on one bill, and equal, exact, percentage or itemized splits. In an itemized split, tax and tip are spread in proportion to what each person ordered.
+- **Settle**: per-member balances, suggested payments that clear them, and settlement records.
+- **Understand**: analytics, a 90-day cash-flow forecast, unusual-spend and duplicate-charge detection, a financial health score and a printable monthly report.
+- **Plan**: savings goals, and an old-versus-new tax regime comparison for FY 2026-27.
+- **Ask**: a copilot that answers questions about your own ledger. It can read but never write.
 
-### 2. Group Expense Management
+The live status of each feature, including what is unfinished, is in [`features.md`](features.md).
 
-- Create groups and invite members with invite codes.
-- Add shared expenses with support for multiple payers.
-- Split expenses using equal, custom, or percentage methods.
-- Enforce strict validations so split amounts match totals.
-- Compute per-member net balances.
-- Suggest simplified pairwise settlements.
-- Record manual settlements with idempotent write support.
+## What makes it different
 
-### 3. Authentication and Access Control
+- Itemized splitting computed in integer paise, so a bill of many indivisible items always sums exactly and nobody systematically absorbs the rounding.
+- A tax planner that pre-fills deductions from your own transactions — no splitting app has one.
+- Insights computed by SQL window functions: each expense is judged against the history of its own category, not a global average.
+- No daily limits and nothing behind a paywall.
 
-- Secure sign in using email/password.
-- Optional Google OAuth support.
-- Protected private APIs and protected dashboard routes.
+## Technical foundation
 
-## Typical User Journey
+Next.js 16 (App Router) and React 19 on Supabase: Postgres with row-level security, Supabase Auth with Google sign-in, and an optional Upstash Redis cache. See [`architecture.md`](architecture.md) and [`database.md`](database.md).
 
-1. A user signs in and lands on the dashboard.
-2. They track personal income and expenses in Finance.
-3. They define budgets and monitor spending trends.
-4. They create or join groups to manage shared costs.
-5. They add group expenses and review who owes whom.
-6. They record settlements and keep balances up to date.
+## Origin
 
-## Technical Foundation
-
-Fee-Nance is built with modern web technologies:
-
-- Next.js App Router and React
-- TypeScript
-- Tailwind CSS
-- NextAuth for authentication
-- MongoDB Atlas with Mongoose
-- Zod for validation
-
-## Data and DBMS Perspective
-
-At runtime, Fee-Nance uses MongoDB (document model). For academic DBMS mapping and evaluation, the project also includes relational SQL deliverables (DDL, DML, JOIN/subquery examples, and GROUP BY/HAVING mappings) to show one-to-one conceptual equivalence.
-
-## What Makes It Useful
-
-- Real-world usability: works for both solo and collaborative finance scenarios.
-- Financial clarity: users can quickly inspect spending, budgets, and balances.
-- Data integrity: validations prevent inconsistent split and settlement states.
-- Demonstrable architecture: suitable for product demos, coursework, and viva discussions.
-
-## Project Scope
-
-Fee-Nance currently focuses on an MVP that is complete enough for practical usage and DBMS demonstration:
-
-- Personal finance essentials
-- Group expense and settlement workflows
-- Protected APIs and structured error handling
-- Reproducible reporting outputs for DBMS documentation
-
-Future enhancements can build on this foundation with notifications, advanced analytics, and deeper automation.
+Fee-Nance began as a DBMS mini-project on MongoDB and moved to Supabase Postgres in October 2026. The DBMS coursework from the MongoDB period is archived in [`dbms/`](dbms/).

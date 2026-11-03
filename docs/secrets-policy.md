@@ -1,31 +1,35 @@
-# Secrets Policy
+# Secrets policy
 
-This project uses environment variables for all secrets and environment-specific configuration.
+## Rules
 
-## Required Rules
-
-1. Never commit real credentials to source control.
-2. Use `.env.local` for local development values.
-3. Keep `.env.example` as a template with placeholder values only.
-4. Rotate secrets immediately if they are exposed.
-5. Use separate credentials per environment (development, test, production).
+1. Never commit real credentials. Local values live in `.env.local`, which git ignores.
+2. `.env.example` holds placeholders and harmless defaults only.
+3. Only values that are public by design carry the `NEXT_PUBLIC_` prefix, because Next.js inlines those into the browser bundle.
+4. Use separate Supabase projects and keys for development and production.
+5. Rotate any key that is exposed, then check the provider's logs for misuse.
+6. Logs carry context, never tokens, keys or request bodies containing personal data.
 
 ## Variables
 
-- `MONGODB_URI`: MongoDB connection string
-- `NEXTAUTH_URL`: Base URL for auth callbacks
-- `NEXTAUTH_SECRET`: Session/JWT signing secret
-- `GOOGLE_CLIENT_ID`: Google OAuth client id (optional)
-- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret (optional)
-- `LOG_LEVEL`: Logging level (`debug`, `info`, `warn`, `error`)
+| Variable | Exposure | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | The anon (publishable) key. Safe in the browser because row-level security protects every table |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | Bypasses RLS. Used only by `npm run seed:demo` on a trusted machine; the app never reads it |
+| `SUPABASE_ACCESS_TOKEN` | **Secret** | Personal token for the Supabase CLI or MCP server; not read by the app |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | **Secret** (token) | Optional cache |
+| `GEMINI_API_KEY` | **Secret** | Copilot and receipt scanning. Server-only; requests are made from route handlers |
+| `GEMINI_MODEL` | Config | Model id for the copilot |
+| `RECEIPT_EXTRACTOR` | Config | Key in `src/lib/receipt/registry.ts`, or `none` |
+| `LOG_LEVEL` | Config | `debug`, `info`, `warn` or `error` |
 
-## Local Setup
+Google's OAuth client ID and secret are entered in the Supabase dashboard (*Authentication → Sign In / Providers → Google*), not in this app's environment.
 
-1. Copy `.env.example` to `.env.local`.
-2. Fill real values in `.env.local`.
-3. Do not share `.env.local`.
+## What is committed on purpose
 
-## Logging Safety
+`.mcp.json` names the Supabase project ref. A project ref is an identifier, not a credential; access through the MCP server still requires the user's own OAuth authorisation.
 
-- Application logs should not print secrets.
-- Log metadata should contain context, not credentials or tokens.
+## Checks
+
+- `src/lib/env.ts` validates the environment lazily, so `next build` succeeds with no secrets and a missing value fails clearly at the point of use. CI builds with no secrets to keep it that way.
+- No secret is read in a client component. Search for `process.env` under `src/components` before merging; only `NEXT_PUBLIC_` values may appear there.

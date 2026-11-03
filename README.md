@@ -6,7 +6,9 @@ Built with Next.js 16 (App Router) on Supabase: Postgres with row-level security
 
 ## Status
 
-This is coursework, actively being refactored. What exists today works end to end — auth, personal finance CRUD, group splits, balances, settlements and the analytics dashboards are all live against real data. What does not exist yet is documented honestly in [Known limitations](#known-limitations); the full remediation plan lives in `fee-nance-updates.md`, and the Phase 0 audit that produced it is in `docs/audit/`.
+Coursework, under active development. Auth, personal finance, group splits, balances, settlements, analytics, insights, goals, the tax planner and the copilot all work against real data, and lint, typecheck, both verify suites and the production build pass in CI.
+
+The central idea — your share of a group bill counting in your personal budget — is not built yet. What is unfinished or wrong is listed in [Known limitations](#known-limitations) and, per feature, in [`docs/features.md`](docs/features.md). The November 2026 review, with a comparison against Splitwise and Indian alternatives, is [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md). The working order is [`TODO.md`](TODO.md).
 
 ## Architecture
 
@@ -48,7 +50,7 @@ Itemized allocation works in **integer paise** and distributes the residual by t
 
 Note the inconsistency this creates: equal splits push the residual onto the last member, itemized splits use largest-remainder. Reconciling the two is backlog item M5.
 
-All four compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and reduced to a minimal set of pairwise transfers by a greedy debtor/creditor match.
+All four compare sums with exact equality *after* rounding to 2 dp, not with an epsilon tolerance. Balances are then folded per member and turned into suggested payments by a greedy debtor/creditor match. That needs at most one fewer payment than there are members with a balance, but it is not guaranteed to be the smallest possible set (finding that is NP-hard).
 
 ## Tech Stack
 
@@ -107,6 +109,9 @@ pipelines with the same windows and thresholds.
   rule, plus overlapping subscriptions (two video services, etc.).
 - **Command palette**: `⌘K` / `Ctrl+K` to jump to any page or start an action.
 
+### Copilot
+- **Financial Health Copilot** (`/copilot`): ask questions about your own money in plain language. A Gemini model calls read-only tools — snapshot, category spend, monthly trend, transaction search, budgets, goals, recurring rules, unusual activity — through your own Supabase session, so row-level security scopes everything it sees. It cannot write. Needs `GEMINI_API_KEY`
+
 ### Group expenses
 - Create a group (you become owner) or join one with an 8-character invite code
 - Multi-payer expenses: several people can have paid toward one bill
@@ -152,6 +157,8 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | The anon / publishable key. Public by design; row-level security protects the data |
 | `SUPABASE_SERVICE_ROLE_KEY` | seed only | Bypasses RLS. Used by `npm run seed:demo` only, never by the app. Keep it out of the browser and out of git |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | no | Upstash Redis for the cache. Leave both unset to run without a cache |
+| `GEMINI_API_KEY` | no | Google AI Studio key for the copilot. Unset: the copilot page says it is unavailable |
+| `GEMINI_MODEL` | no | Model id for the copilot; defaults to `gemini-3.8-flash` |
 | `RECEIPT_EXTRACTOR` | no | Selects an OCR implementation from `src/lib/receipt/registry.ts`; unset or `none` disables receipt scanning |
 | `LOG_LEVEL` | no | `debug`, `info`, `warn` or `error` |
 
@@ -190,6 +197,7 @@ npm run seed:demo -- you@gmail.com
 | `/analytics` | Deeper breakdowns and trajectory |
 | `/insights` | Cash-flow forecast, unusual spending, duplicate charges, unruled subscriptions |
 | `/goals`, `/tax`, `/report` | Savings goals, tax planner, printable monthly report |
+| `/copilot` | Financial Health Copilot |
 | `/profile` | Account details and preferences (reached from the account menu) |
 
 Private APIs live under `/api/private/*`. They are enumerated in `docs/private-api-reference.md`.
@@ -198,34 +206,18 @@ Private APIs live under `/api/private/*`. They are enumerated in `docs/private-a
 
 `npm run seed:demo -- <email>` fills an account that has already signed in with a year of salary, rent, groceries, subscriptions, a duplicate charge, budgets, three goals, and a "Hostel Squad" group shared with two demo friends (`aditi.rao@feenance.demo`, `karan.verma@feenance.demo`, created in Supabase Auth; they can't sign in). It refuses to touch an account that already has data unless you pass `--reset`.
 
-## Documentation Index
+## Documentation
 
-> The schema of record is now `supabase/migrations/`. Documents under `docs/` that describe MongoDB collections, aggregation pipelines or Mongo-to-relational mappings describe the design before the move to Supabase, and are kept as coursework history.
+Start at [`docs/README.md`](docs/README.md). The most useful pages:
 
-Overview:
-- `docs/what-is-fee-nance.md` — what the project is and who it is for
-- `docs/fee-nance-features.md` — full implemented-feature list
-- `docs/architecture-module-flow.md` — module and request flow
+- [`docs/features.md`](docs/features.md) — every feature and its status
+- [`docs/architecture.md`](docs/architecture.md) — modules, request flow, authorization, caching
+- [`docs/database.md`](docs/database.md) — schema, ER diagram, RLS and SQL functions
+- [`docs/private-api-reference.md`](docs/private-api-reference.md) — every API route
+- [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md) — November 2026 review and competitor comparison
+- [`docs/demo-script.md`](docs/demo-script.md), [`docs/manual-qa-checklist.md`](docs/manual-qa-checklist.md)
 
-Database:
-- `docs/DBMS.md` — consolidated DBMS write-up
-- `docs/er-diagram.md`, `docs/relational-mapping.md`
-- `docs/dbms-query-mapping.md`, `docs/mongo-relational-equivalents.md`
-- `docs/viva-notes-mongodb-vs-relational.md`
-
-API and operations:
-- `docs/private-api-reference.md`
-- `docs/insights-pipelines.md` — the `$setWindowFields` pipelines behind `/insights`
-- `docs/secrets-policy.md`
-- `docs/demo-script.md`, `docs/manual-qa-checklist.md`
-
-Phase 0 audit (read-only findings that drive the backlog):
-- `docs/audit/codebase-map.md` — every route, model and helper
-- `docs/audit/money-path.md` — where amounts are read, written and compared
-- `docs/audit/authorization.md` — per-route ownership check table
-- `docs/audit/split-allocation.md` — remainder handling
-- `docs/audit/balance-settlement.md` — query patterns and round-trips
-- `docs/audit/dead-code.md` — unused symbols and unimplemented claims
+DBMS coursework from the MongoDB period, including `sql-scripts/`, is archived in [`docs/dbms/`](docs/dbms/). The Phase 0 audit of the MongoDB codebase is in [`docs/audit/`](docs/audit/).
 
 ## Known limitations
 
@@ -233,13 +225,23 @@ Phase 0 audit (read-only findings that drive the backlog):
 - **The forecast double-counts recurring expenses approximately.** Generated occurrences carry no reference to the rule that produced them, so the projection subtracts each rule's rate from the discretionary rate instead of excluding the occurrences by id. Exact over a long window, approximate over a short one; backlog item F8.
 - **Percentage splits have no explicit remainder rule.** They reject inputs whose rounded shares miss the total instead of allocating the residual.
 - **No test runner.** `verify:calc` and `verify:db` are standing checks, not a Vitest suite.
-- **Missing endpoints.** Group expenses and settlements can't be edited or deleted.
+- **Group shares don't reach personal finance.** Budgets, dashboard totals, the health score and the copilot see personal transactions only (backlog F5).
+- **Equal splits always include every member.** To split among some of the group, use a custom or itemized split.
+- **Group expenses and settlements can't be edited or deleted.**
+- **Recurring entries are generated only from the dashboard button.** Monthly rules on the 29th–31st drift (31 Jan → 3 Mar → 3 Apr), and two runs at once can create duplicate occurrences.
+- **Leaving a group with an outstanding balance breaks settle-up**: the departed member is still in the balances but can no longer be paid. The owner leaving deletes the group for everyone.
+- **Any member can record a settlement between any two members.**
+- **The SQL write check allows a 0.01 difference** between an expense and its parts, although the TypeScript check is exact.
+- **Receipt scanning has no extractor registered**, so the scan button is hidden.
+- **The copilot has no rate limit.**
 - **Invite codes use Postgres `random()`**, not a cryptographic source. They are 8 characters from a 32-letter alphabet and only grant membership of one group.
 - **Redis invalidation is per user.** A write bumps the version of everyone it affects (all members, for group writes); entries otherwise expire after 5 minutes.
 
 ---
 
 ## Data Model
+
+Full detail, with the ER diagram, policies and functions, is in [`docs/database.md`](docs/database.md).
 
 The schema lives in `supabase/migrations/20261008000001_schema.sql`; the functions in `…000002_functions.sql`.
 

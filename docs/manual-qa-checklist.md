@@ -1,73 +1,68 @@
-# Manual QA Checklist (Phase 8)
+# Manual QA checklist
 
-Use this checklist after running:
+Run before a release or a demo, after:
 
 ```bash
-npm run seed
+npm run lint && npx tsc --noEmit && npm run verify:calc && npm run verify:db
 npm run dev
+npm run seed:demo -- you@gmail.com --reset
 ```
 
-Demo users:
-- alex@feenance.demo / Demo@1234
-- riya@feenance.demo / Demo@1234
-- kabir@feenance.demo / Demo@1234
+## 1. Auth
 
-## 1. Auth Flows
-- [ ] Register with email/password creates user and redirects to dashboard
-- [ ] Login with valid credentials succeeds
-- [ ] Login with invalid credentials shows error
-- [ ] Continue with Google appears only when Google env vars are configured
-- [ ] Sign out ends session and redirects to login
-- [ ] Visiting `/dashboard` while logged out redirects to `/login`
+- [ ] Signed out, `/dashboard` redirects to `/login?next=/dashboard`
+- [ ] Google sign-in returns to the page in `next`
+- [ ] First sign-in creates a profile with the Google name and avatar
+- [ ] A cancelled or failed Google sign-in shows a readable error on `/login`
+- [ ] Sign out ends the session; the back button does not show private data
+- [ ] `/api/private/me` without a session returns `401`
 
-## 2. Personal Finance Flows
-- [ ] Transactions load with seeded records for demo users
-- [ ] Create transaction works for both income and expense
-- [ ] Update transaction title/amount works
-- [ ] Delete transaction removes row from list
-- [ ] Budget create/update/delete works
-- [ ] Category create/update/delete works for custom categories
-- [ ] Date filters update summaries and list content
-- [ ] Running balance updates after transaction changes
-- [ ] Monthly summary and category summary are visible and non-empty with seed data
+## 2. Personal finance
 
-## 3. Recurring Rules
-- [ ] Recurring transactions can be created
-- [ ] Dashboard `Run Recurring` button triggers generation and refreshes data
+- [ ] Create, edit and delete an income and an expense
+- [ ] Date range filter changes both the list and the totals
+- [ ] Create, edit and delete a custom category; deleting one leaves its transactions uncategorised
+- [ ] System categories cannot be edited or deleted
+- [ ] Create a monthly budget for one category and an overall budget; spend matches the ledger
+- [ ] Create a recurring rule, generate due entries, and confirm each date
+- [ ] CSV export opens correctly in a spreadsheet
 
-## 4. Group Expense Flows
-- [ ] Group list loads seeded groups (`Weekend Crew`, `Flatmates 302`)
-- [ ] Create group works and shows invite code
-- [ ] Join group with valid invite code works
-- [ ] Add group expense works for:
-  - [ ] Equal split
-  - [ ] Custom split
-  - [ ] Percentage split
-- [ ] Multiple payer entries are accepted and validated
-- [ ] Invalid split totals are rejected with 422 response
-- [ ] Balances panel shows net per member and pairwise settlements
-- [ ] Manual settlement creates a settlement record and updates balances
+## 3. Groups
 
-## 5. API Security and Validation
-- [ ] Requests to `/api/private/*` without session return 401
-- [ ] Invalid payloads return structured 422 errors
-- [ ] Unauthorized group access returns 403
-- [ ] Invalid ObjectId paths return 422
+- [ ] Create a group; the invite code is shown
+- [ ] Join with that code from a second account; a wrong code returns "Invalid invite code"
+- [ ] Add expenses with each split type: equal, custom, percentage, itemized
+- [ ] Itemized: a proportional tax line follows each person's subtotal; the shares sum exactly to the total
+- [ ] Several payers on one expense are accepted when they sum to the total and rejected otherwise
+- [ ] Balances sum to zero across members
+- [ ] Recording a settlement updates balances; repeating the request with the same idempotency key does not create a second one
+- [ ] A non-member opening the group URL gets "Group not found"
+- [ ] Member leaves: the group remains for others. Owner deletes: the group disappears for everyone
 
-## 6. UI and Responsiveness
-- [ ] Dashboard, Finance, Groups, and Group Detail pages render at mobile width (360px)
-- [ ] No clipped controls/buttons in forms
-- [ ] Select dropdowns remain readable in dark mode
-- [ ] Error boundary pages render usable retry actions
+## 4. Insights and planning
 
-## 7. Seed Data Verification
-- [ ] `npm run seed` finishes without errors
-- [ ] Three demo users are present
-- [ ] Seeded transactions exist across multiple months
-- [ ] Seeded budgets exist across monthly/quarterly/yearly cycles
-- [ ] Seeded groups include expenses and settlements
+- [ ] Insights shows the seeded duplicate charge and at least one outlier
+- [ ] The forecast renders 90 days with a widening band
+- [ ] The tax planner pre-fills deductions and recommends a regime
+- [ ] Goal projections change with the what-if slider
+- [ ] The monthly report prints on one page
 
-## 8. Final Regression Sweep
-- [ ] `npm run lint` passes
-- [ ] Critical pages return 200 (`/`, `/login`, `/register`)
-- [ ] No server-side unhandled errors in terminal during smoke test
+## 5. Copilot
+
+- [ ] Without `GEMINI_API_KEY`, the page says the copilot is unavailable
+- [ ] With it, a broad question lists tool steps and quotes real figures
+- [ ] Asking it to add a transaction gets a refusal that names the right page
+
+## 6. Security
+
+- [ ] Another user's transaction, budget, goal or group id returns `404`
+- [ ] A malformed id returns `404`, not `500`
+- [ ] Invalid payloads return `422` with a readable message
+- [ ] No secret appears in the browser bundle (search the built JS for `SERVICE_ROLE` and `GEMINI`)
+
+## 7. UI
+
+- [ ] Every page works at 360px width with no horizontal scroll
+- [ ] Light and dark themes are both readable, including selects and charts
+- [ ] Ctrl/⌘+K opens the command palette
+- [ ] Error boundaries show a retry action

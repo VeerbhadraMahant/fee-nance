@@ -3,10 +3,25 @@
 ## Context for the agent
 
 Project: Fee-Nance — personal finance + group expense app.
-Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind 4, NextAuth v4, MongoDB Atlas + Mongoose 9, Zod 4.
+Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind 4, Supabase (Postgres with RLS, Auth with Google), optional Upstash Redis, Zod 4. Written when the stack was NextAuth and MongoDB; item wording that mentions Mongoose, `ObjectId` or `Decimal128` predates the move.
 Deployment: Vercel. Currency: INR only.
 
 **Important:** the findings below were derived from the README, `package.json`, and `middleware.ts` only — `src/` was never inspected. Every task therefore begins with an audit step. Do not assume a defect exists. Confirm it in the code first, report what you found, and only then apply the fix. If an audit shows the problem is already handled, say so and move on.
+
+## Status (November 2026)
+
+Measured in [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md); the working order is [`TODO.md`](TODO.md).
+
+| Phase | Done | Open items |
+|---|---|---|
+| 0 Audit | ~100% | — (`docs/audit/`, MongoDB era) |
+| 1 Monetary correctness | ~25% | M1–M5: Money value object, paise everywhere; M6 exact comparison in SQL |
+| 2 Authorization | ~90% | S5: reject unknown keys |
+| 3 Data integrity | ~60% | I1 category soft-delete (currently `on delete set null`), I2 leave-with-balance guard |
+| 4 Tests | ~50% | T1 Vitest, T5 per-route authorization tests. T6 CI is done |
+| 5 Architecture | ~15% | R1 service layer, R2 split strategies, R4 ADR, R5 metrics. R3 mappers exist |
+| 6 Features | ~5% | All; F5, F8, F10, F13, F14 are prioritised in `TODO.md`, F1–F4 and F12 deferred |
+| 7 Documentation | ~70% | D2 `docs/seml/`, D4 Sankey write-up. D1, D3, D5 done |
 
 Work top to bottom. Do not start a phase until the previous one is green.
 
