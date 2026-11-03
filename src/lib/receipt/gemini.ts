@@ -1,3 +1,4 @@
+import { fetchGemini } from "@/lib/gemini-call";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { HttpError } from "@/lib/route";
@@ -50,31 +51,23 @@ export class GeminiReceiptExtractor implements ReceiptExtractor {
     const key = env.GEMINI_API_KEY;
     if (!key) throw new HttpError(503, "Receipt scanning needs GEMINI_API_KEY.");
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL)}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: PROMPT },
-                { inlineData: { mimeType: image.mimeType, data: image.base64 } },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 2048,
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_SCHEMA,
-          },
-        }),
-        signal: AbortSignal.timeout(45_000),
+    const response = await fetchGemini(key, {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: PROMPT }, { inlineData: { mimeType: image.mimeType, data: image.base64 } }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 2048,
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
       },
-    );
+    }).catch((error: unknown) => {
+      logger.error("Gemini receipt unreachable", error instanceof Error ? error : new Error(String(error)));
+      throw new HttpError(502, "Couldn't reach the receipt reader. Add the items by hand, or try again.");
+    });
 
     if (!response.ok) {
       logger.error("Gemini receipt request failed", new Error(`${response.status} ${(await response.text()).slice(0, 300)}`));

@@ -7,6 +7,7 @@
  */
 
 import { env } from "@/lib/env";
+import { fetchGemini } from "@/lib/gemini-call";
 import { logger } from "@/lib/logger";
 import { HttpError } from "@/lib/route";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
@@ -59,24 +60,20 @@ async function callGemini(contents: Content[]) {
   const key = env.GEMINI_API_KEY;
   if (!key) throw new HttpError(503, "The copilot isn't configured yet (missing GEMINI_API_KEY).");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt() }] },
-        contents,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
-      }),
-      signal: AbortSignal.timeout(45_000),
-    },
-  );
+  const response = await fetchGemini(key, {
+    systemInstruction: { parts: [{ text: systemPrompt() }] },
+    contents,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+  }).catch((error: unknown) => {
+    logger.error("Gemini unreachable", error instanceof Error ? error : new Error(String(error)));
+    throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
+  });
 
   if (!response.ok) {
     logger.error("Gemini request failed", new Error(`${response.status} ${(await response.text()).slice(0, 300)}`));
     if (response.status === 429) throw new HttpError(429, "The copilot is busy right now. Try again in a moment.");
+    if (response.status === 503) throw new HttpError(503, "Google's AI service is overloaded right now. Try again in a minute.");
     throw new HttpError(502, "The copilot couldn't reach its model. Try again shortly.");
   }
   return (await response.json()) as { candidates?: Array<{ content?: Content; finishReason?: string }> };
