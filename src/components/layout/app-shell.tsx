@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
+import { Compass, Home, LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
@@ -141,6 +141,12 @@ function AccountMenu({
             <Link href="/profile">
               <Settings />
               Profile &amp; settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/">
+              <Home />
+              Landing page
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={startTour}>

@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import {
   CornerDownLeft,
   Compass,
+  Home,
   Monitor,
   Moon,
   Plus,
@@ -91,6 +92,15 @@ export function CommandPalette() {
         icon: item.icon,
         run: go(item.href),
       })),
+      {
+        id: "go:/",
+        group: "Go to",
+        label: "Landing page",
+        hint: "The public home page",
+        keywords: "home welcome front page website",
+        icon: Home,
+        run: go("/"),
+      },
       {
         id: "go:/profile",
         group: "Go to",
