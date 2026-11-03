@@ -305,6 +305,7 @@ export function TransactionsTab({
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{txn.title}</span>
+                          {txn.pending && <Badge variant="outline">Waiting to sync</Badge>}
                           {txn.recurring?.enabled && (
                             <Tooltip
                               content={`Repeats ${txn.recurring.frequency ?? "monthly"}`}
@@ -372,6 +373,7 @@ export function TransactionsTab({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium">{txn.title}</p>
+                        {txn.pending && <Badge variant="outline" className="shrink-0">Waiting to sync</Badge>}
                         {txn.recurring?.enabled && (
                           <Repeat
                             className="size-3.5 shrink-0 text-muted-foreground"

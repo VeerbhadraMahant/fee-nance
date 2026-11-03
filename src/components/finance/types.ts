@@ -22,6 +22,8 @@ export interface Transaction {
     enabled: boolean;
     frequency?: "monthly" | "yearly";
   };
+  /** Made offline and not on the server yet. */
+  pending?: boolean;
 }
 
 export interface Budget {

@@ -28,6 +28,8 @@ import {
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toaster";
 import { useCurrentUser } from "@/components/providers/current-user";
+import { OfflineStatus } from "@/components/offline/offline-status";
+import { clearOfflineData, hasPendingChanges, startOffline } from "@/lib/offline/client";
 import {
   Sheet,
   SheetContent,
@@ -79,13 +81,18 @@ function AccountMenu({
   const email = user?.email ?? "";
 
   const handleSignOut = async () => {
+    const waiting = hasPendingChanges();
     const ok = await confirm({
-      title: "Sign out of Fee-Nance?",
-      description: "You'll need to sign in again to reach your ledger.",
-      confirmLabel: "Sign out",
+      title: waiting ? "Sign out and lose unsynced changes?" : "Sign out of Fee-Nance?",
+      description: waiting
+        ? "Some changes were made offline and haven't reached the server yet. Signing out deletes them from this device. Cancel, get online, and let them sync first."
+        : "You'll need to sign in again to reach your ledger. Data saved on this device for offline use is removed.",
+      confirmLabel: waiting ? "Sign out anyway" : "Sign out",
       destructive: true,
     });
     if (!ok) return;
+    // Saved pages and data belong to this account; they must not outlive it.
+    await clearOfflineData(user?.id);
     // A real form POST: the route clears the auth cookies and redirects, and
     // the full navigation drops every client-side cache with them.
     const form = document.createElement("form");
@@ -252,7 +259,7 @@ function DesktopSidebar() {
 
 function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b-[1.5px] border-border bg-background/90 px-4 backdrop-blur-md pt-[env(safe-area-inset-top)] lg:hidden print:hidden">
+    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b-[1.5px] border-border bg-background/90 pb-0 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden print:hidden">
       <Brand />
       <div className="flex items-center gap-1">
         <button
@@ -362,7 +369,6 @@ function useDueRecurringEntries() {
   React.useEffect(() => {
     try {
       if (sessionStorage.getItem(RECURRING_RUN_KEY)) return;
-      sessionStorage.setItem(RECURRING_RUN_KEY, "1");
     } catch {
       // Storage unavailable: run anyway; it is safe to repeat.
     }
@@ -370,6 +376,14 @@ function useDueRecurringEntries() {
     void fetch("/api/private/transactions/recurring/run", { method: "POST" })
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { generatedCount?: number } | null) => {
+        // Only a run that reached the server counts; offline, try again later.
+        if (body) {
+          try {
+            sessionStorage.setItem(RECURRING_RUN_KEY, "1");
+          } catch {
+            // ignore
+          }
+        }
         const count = body?.generatedCount ?? 0;
         if (!count) return;
         toast.success(`Added ${count} recurring entr${count === 1 ? "y" : "ies"} that fell due`, {
@@ -385,6 +399,11 @@ function useDueRecurringEntries() {
 /* ── Shell ─────────────────────────────────────────────────────────────── */
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const user = useCurrentUser();
+  const userId = user?.id;
+  React.useEffect(() => {
+    if (userId) startOffline(userId);
+  }, [userId]);
   useDueRecurringEntries();
 
   return (
@@ -406,8 +425,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           tabIndex={-1}
           className={cn(
             "mx-auto w-full max-w-6xl px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8",
-            // Clears the fixed bottom nav on mobile so nothing is hidden under it.
-            "pb-24 lg:pb-8 print:max-w-none print:p-0",
+            // Clears the fixed bottom nav (and the home indicator) on mobile.
+            "pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8 print:max-w-none print:p-0",
           )}
         >
           {children}
@@ -415,6 +434,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <MobileBottomNav />
+      <OfflineStatus />
       <CommandPalette />
     </div>
   );
