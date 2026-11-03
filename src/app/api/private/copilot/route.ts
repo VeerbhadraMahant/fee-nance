@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/api-auth";
 import { runCopilot } from "@/lib/copilot/agent";
 import { env } from "@/lib/env";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { handleRouteError } from "@/lib/route";
 
 export const maxDuration = 60;
@@ -28,13 +29,17 @@ export async function GET() {
   }
 }
 
+/** Each question can cost up to six model calls on the project's key. */
+const COPILOT_LIMIT = { limit: 30, windowSeconds: 60 * 60 };
+
 export async function POST(request: Request) {
   try {
-    const { supabase } = await requireUser();
+    const { supabase, userId } = await requireUser();
     const { messages } = bodySchema.parse(await request.json());
     if (messages.at(-1)?.role !== "user") {
       return Response.json({ error: "The last message must be from the user" }, { status: 422 });
     }
+    await enforceRateLimit("copilot", userId, COPILOT_LIMIT);
     return Response.json(await runCopilot(supabase, messages));
   } catch (error) {
     return handleRouteError(error, "The copilot ran into a problem");

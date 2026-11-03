@@ -1,7 +1,9 @@
 /**
- * Read-only tools the copilot can call. Every one runs through the caller's
- * own Supabase client, so row-level security scopes the data to them — the
- * model can never see or touch anyone else's ledger, and nothing here writes.
+ * Tools the copilot can call. Every one runs through the caller's own
+ * Supabase client, so row-level security scopes the data to them — the model
+ * can never see or touch anyone else's ledger — and nothing here writes.
+ * `draft_transaction` only proposes an entry; the user saves it from the UI
+ * through the ordinary transactions route, validated like any other.
  */
 
 import { spendByBudget } from "@/lib/budget-spend";
@@ -79,9 +81,40 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
     description: "Outlier spends, possible duplicate charges and category spending drift detected in the ledger.",
     parameters: { type: "OBJECT", properties: RANGE_PROPS },
   },
+  {
+    name: "get_group_balances",
+    description:
+      "The user's shared-expense groups: each group's members, every member's net position (positive = the group owes them), and the user's own net. Use for 'who owes me', 'what do I owe', settling up.",
+  },
+  {
+    name: "draft_transaction",
+    description:
+      "Propose ONE personal income or expense entry from what the user described (e.g. 'paid 450 for groceries yesterday'). This does NOT save anything: the app shows the draft to the user, who confirms or discards it. Only call it when the user asks to add or log something.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        type: { type: "STRING", description: "income or expense", enum: ["income", "expense"] },
+        title: { type: "STRING", description: "Short description, 2-100 characters, e.g. 'Groceries - BigBasket'." },
+        amount: { type: "NUMBER", description: "Amount in rupees, greater than zero." },
+        date: { type: "STRING", description: "YYYY-MM-DD. Resolve words like 'yesterday' against today's date." },
+        category: { type: "STRING", description: "Best-matching category name, e.g. Food, Rent, Travel, Shopping, Utilities, Salary, Freelance. Optional." },
+      },
+      required: ["type", "title", "amount", "date"],
+    },
+  },
 ];
 
 type Args = Record<string, unknown>;
+
+/** A transaction the copilot proposes; the user confirms it in the UI. */
+export interface TransactionDraft {
+  type: "income" | "expense";
+  title: string;
+  amount: number;
+  transactionDate: string;
+  categoryId?: string;
+  categoryName?: string;
+}
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const numArg = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -355,7 +388,89 @@ export async function runTool(supabase: SupabaseServerClient, name: string, args
       };
     }
 
+    case "get_group_balances":
+      return groupBalances(supabase);
+
+    case "draft_transaction":
+      return draftTransaction(supabase, args);
+
     default:
       return { error: `Unknown tool: ${name}` };
   }
+}
+
+async function groupBalances(supabase: SupabaseServerClient) {
+  const { data: claims } = await supabase.auth.getClaims();
+  const me = claims?.claims?.sub;
+  const groups = (must(
+    await supabase.from("groups").select("id, name, group_members(user_id, profiles(name))"),
+  ) ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    group_members: Array<{ user_id: string; profiles: { name: string } | { name: string }[] | null }>;
+  }>;
+
+  return Promise.all(
+    groups.map(async (group) => {
+      const members = await Promise.all(
+        group.group_members.map(async (member) => {
+          const net = Number(
+            must(
+              await supabase.rpc("group_member_net", { p_group_id: group.id, p_user_id: member.user_id }),
+            ) ?? 0,
+          );
+          const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+          return { name: profile?.name ?? "Member", isYou: member.user_id === me, net: roundCurrency(net) };
+        }),
+      );
+      return {
+        group: group.name,
+        yourNet: members.find((m) => m.isYou)?.net ?? 0,
+        members,
+      };
+    }),
+  );
+}
+
+/**
+ * Checks a proposed entry the same way the transactions route would, and
+ * resolves the category by name. Returns the draft for the UI; never writes.
+ */
+async function draftTransaction(supabase: SupabaseServerClient, args: Args) {
+  const type = args.type === "income" ? "income" : args.type === "expense" ? "expense" : undefined;
+  const title = str(args.title);
+  const amount = numArg(args.amount);
+  const date = str(args.date);
+
+  const problems: string[] = [];
+  if (!type) problems.push("type must be income or expense");
+  if (!title || title.length < 2 || title.length > 100) problems.push("title must be 2-100 characters");
+  if (amount === undefined || amount <= 0) problems.push("amount must be greater than zero");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
+    problems.push("date must be YYYY-MM-DD");
+  }
+  if (problems.length) return { error: `Can't draft that: ${problems.join("; ")}. Ask the user for what's missing.` };
+
+  let categoryId: string | undefined;
+  let categoryName: string | undefined;
+  const wanted = str(args.category)?.toLowerCase();
+  if (wanted) {
+    const categories = (must(await supabase.from("categories").select("id, name, type").eq("type", type!)) ??
+      []) as Array<{ id: string; name: string }>;
+    const match =
+      categories.find((c) => c.name.toLowerCase() === wanted) ??
+      categories.find((c) => c.name.toLowerCase().includes(wanted) || wanted.includes(c.name.toLowerCase()));
+    categoryId = match?.id;
+    categoryName = match?.name;
+  }
+
+  const draft: TransactionDraft = {
+    type: type!,
+    title: title!,
+    amount: roundCurrency(amount!),
+    transactionDate: `${date}T00:00:00.000Z`,
+    categoryId,
+    categoryName,
+  };
+  return { draft, note: "Shown to the user as a draft to confirm. Nothing has been saved yet." };
 }
