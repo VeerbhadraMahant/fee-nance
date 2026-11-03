@@ -57,7 +57,7 @@ All four compare sums with exact equality *after* rounding to 2 dp, not with an 
 - Next.js 16 (App Router) + React 19
 - TypeScript
 - Tailwind CSS 4, Radix UI primitives, `next-themes`, `sonner`
-- Recharts, plus a hand-rolled Sankey layout in the analytics suite
+- Recharts, including its Sankey chart for the personal money-flow diagram
 - Supabase: Postgres 15+ with row-level security, Supabase Auth (Google OAuth), `@supabase/ssr`
 - Upstash Redis (optional cache)
 - Zod 4
@@ -128,12 +128,12 @@ pipelines with the same windows and thresholds.
 - Settlements: only the payer or payee can record or delete one; idempotent by key
 
 ### Group analytics
-- Cross-group net balance Sankey (groups you owe vs groups that owe you)
+- Cross-group net position, as diverging bars (groups you owe vs groups that owe you)
 - Per-group spend timeline with stacked member bars
 - Member spend share donut and net position bars
 - Top expenses table
 - Split type breakdown
-- Settlement flow Sankey with proportional per-node flow sizing
+- Settlement history per group
 
 ### Auth
 - Google sign-in only, through Supabase Auth. The same button signs up and signs in

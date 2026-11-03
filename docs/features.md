@@ -53,7 +53,7 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 |---|---|---|
 | Dashboard: balance, trends, category breakdown | Done | Totals include group shares; the recent-activity list shows transactions only |
 | Analytics: Sankey money flow, trajectory, composition, quarterly, efficiency | Done | |
-| Group analytics: cross-group Sankey, timelines, member shares | Done | |
+| Group analytics: net position per group, paid vs owed, timelines, member shares, split methods | Done | Bar and donut charts. An earlier custom Sankey was replaced by bars because they reflow on phones |
 | 90-day cash-flow forecast with confidence band | Done | Approximates the recurring/discretionary overlap (backlog F8) |
 | Outliers, duplicate charges, category drift | Done | SQL window functions over your own transactions |
 | Unruled recurring payees and overlapping subscriptions | Done | |

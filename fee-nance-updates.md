@@ -21,7 +21,7 @@ Measured in [`docs/assessment-2026-11.md`](docs/assessment-2026-11.md); the work
 | 4 Tests | ~50% | T1 Vitest, T5 per-route authorization tests. T6 CI is done |
 | 5 Architecture | ~15% | R1 service layer, R2 split strategies, R4 ADR, R5 metrics. R3 mappers exist |
 | 6 Features | ~35% | F5 (group shares in personal ledger), F8 (idempotent recurring generation), F10 (pace), F13 (CSV import), F14 (copilot drafts) done. F6, F7, F9, F11 open; F1–F4 and F12 deferred |
-| 7 Documentation | ~70% | D2 `docs/seml/`, D4 Sankey write-up. D1, D3, D5 done |
+| 7 Documentation | ~70% | D2 `docs/seml/`, D1, D3, D5 done; D4 dropped (the layout is Recharts', not ours) |
 
 Work top to bottom. Do not start a phase until the previous one is green.
 

@@ -38,7 +38,7 @@ Ordered by value. IDs in brackets refer to the backlog in [`fee-nance-updates.md
 - [x] Remove the stray `.github/agents/tasksync.agent.md`
 - [x] Remove the unused `computePairwiseBalances`
 - [x] Landing page copy: drop "shortest set of payments", mention itemized splits, insights, tax and copilot
-- [ ] Document the Sankey layout algorithm [D4]
+- [x] Sankey write-up [D4]: dropped. The layout is Recharts' own and the custom group Sankeys were replaced by bar charts, so there is no algorithm of ours to document
 
 ## Deferred
 
