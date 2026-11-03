@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownLeft, ArrowUpRight, Download, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Download, FileUp, Plus, Wallet } from "lucide-react";
 
 import { useQuery, readApiError } from "@/lib/use-query";
 import { downloadCsv } from "@/lib/csv";
@@ -17,6 +17,7 @@ import { TransactionsTab } from "./transactions-tab";
 import { BudgetsTab } from "./budgets-tab";
 import { CategoriesTab } from "./categories-tab";
 import { TransactionDialog } from "./transaction-dialog";
+import { ImportDialog } from "./import-dialog";
 import { BudgetDialog } from "./budget-dialog";
 import { CategoryDialog } from "./category-dialog";
 import type { Budget, Category, FinancePayload, Transaction } from "./types";
@@ -53,6 +54,8 @@ export function FinanceManager() {
     open: boolean;
     category: Category | null;
   }>({ open: false, category: null });
+
+  const [importOpen, setImportOpen] = React.useState(false);
 
   const { confirm, confirmDialog } = useConfirm();
 
@@ -254,6 +257,12 @@ export function FinanceManager() {
           </TabsList>
 
           <div className="flex gap-2">
+            {tab === "transactions" && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <FileUp className="size-4" />
+                Import CSV
+              </Button>
+            )}
             {tab === "transactions" && transactions.length > 0 && (
               <Button variant="outline" onClick={handleExportTransactions}>
                 <Download className="size-4" />
@@ -283,7 +292,6 @@ export function FinanceManager() {
           <BudgetsTab
             budgets={budgets}
             categories={categories}
-            transactions={transactions}
             onCreate={() => setBudgetDialog({ open: true, budget: null })}
             onEdit={(budget) => setBudgetDialog({ open: true, budget })}
             onDelete={handleDeleteBudget}
@@ -309,6 +317,7 @@ export function FinanceManager() {
         transaction={txnDialog.transaction}
         onSaved={reload}
       />
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={reload} />
       <BudgetDialog
         open={budgetDialog.open}
         onOpenChange={(open) => setBudgetDialog((c) => ({ ...c, open }))}
