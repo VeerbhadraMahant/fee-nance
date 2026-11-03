@@ -125,7 +125,8 @@ async function request(
   pathAndQuery: string,
   opts: { method?: string; navigate?: boolean; headers?: Record<string, string> } = {},
 ) {
-  let handled: Promise<Response> | null = null;
+  // An object, not a variable: TypeScript can't see the callback assign it.
+  const slot: { response: Promise<Response> | null } = { response: null };
   const background: Promise<unknown>[] = [];
   listeners.fetch({
     waitUntil: (p: Promise<unknown>) => background.push(p),
@@ -136,10 +137,10 @@ async function request(
       headers: new Headers(opts.headers ?? (opts.navigate ? { accept: "text/html" } : {})),
     },
     respondWith: (p: Promise<Response>) => {
-      handled = p;
+      slot.response = p;
     },
   });
-  const response = handled ? await handled : null;
+  const response = slot.response ? await slot.response : null;
   // The browser keeps the worker alive for waitUntil work; do the same.
   await Promise.all(background);
   return response;
