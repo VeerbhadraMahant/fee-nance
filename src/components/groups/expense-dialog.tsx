@@ -26,14 +26,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { GroupMember } from "./types";
+import type { Category } from "@/components/finance/types";
+import type { GroupExpense, GroupMember, SplitType } from "./types";
 
-type SplitType = "equal" | "custom" | "percentage" | "itemized";
+const NO_CATEGORY = "none";
 
 const SPLIT_LABELS: Record<SplitType, { label: string; hint: string }> = {
   equal: {
     label: "Split equally",
-    hint: "Everyone owes the same share.",
+    hint: "Everyone ticked owes the same share.",
   },
   custom: {
     label: "Exact amounts",
@@ -156,6 +157,42 @@ function MemberAmountGrid({
               </span>
             </div>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Toggle chips for choosing members — used for equal-split participants. */
+function MemberChips({
+  members,
+  selected,
+  onToggle,
+}: {
+  members: GroupMember[];
+  selected: string[];
+  onToggle: (userId: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {members.map((member) => {
+        const id = member.userId._id;
+        const active = selected.includes(id);
+        return (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onToggle(id)}
+            className={cn(
+              "rounded-full border-[1.5px] px-3 py-1 text-xs font-medium transition-colors",
+              active
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-foreground/20 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+            )}
+          >
+            {member.userId.name}
+          </button>
         );
       })}
     </div>
@@ -335,23 +372,30 @@ export function ExpenseDialog({
   onOpenChange,
   groupId,
   members,
+  expense,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   groupId: string;
   members: GroupMember[];
+  /** An existing expense to edit; omitted to add a new one. */
+  expense?: GroupExpense | null;
   onSaved: () => void;
 }) {
+  const isEdit = Boolean(expense);
   const [title, setTitle] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [incurredAt, setIncurredAt] = React.useState(toDateInput(new Date()));
+  const [categoryId, setCategoryId] = React.useState(NO_CATEGORY);
+  const [categories, setCategories] = React.useState<Category[]>([]);
   const [splitType, setSplitType] = React.useState<SplitType>("equal");
   const [multiPayer, setMultiPayer] = React.useState(false);
   const [singlePayer, setSinglePayer] = React.useState("");
   const [payerMap, setPayerMap] = React.useState<Record<string, string>>({});
   const [splitMap, setSplitMap] = React.useState<Record<string, string>>({});
+  const [participants, setParticipants] = React.useState<string[]>([]);
   const [lineItems, setLineItems] = React.useState<LineItemDraft[]>([]);
   const [scanning, setScanning] = React.useState(false);
   const [scanAvailable, setScanAvailable] = React.useState(false);
@@ -361,20 +405,92 @@ export function ExpenseDialog({
 
   React.useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setAmount("");
-    setNotes("");
-    setIncurredAt(toDateInput(new Date()));
-    setSplitType("equal");
-    setMultiPayer(false);
-    setSinglePayer(members[0]?.userId._id ?? "");
-    setPayerMap({});
-    setSplitMap({});
-    setLineItems([newLineItem()]);
+    const memberIds = members.map((m) => m.userId._id);
     setScanning(false);
     setErrors({});
     setSaving(false);
-  }, [open, members]);
+
+    if (!expense) {
+      setTitle("");
+      setAmount("");
+      setNotes("");
+      setIncurredAt(toDateInput(new Date()));
+      setCategoryId(NO_CATEGORY);
+      setSplitType("equal");
+      setMultiPayer(false);
+      setSinglePayer(members[0]?.userId._id ?? "");
+      setPayerMap({});
+      setSplitMap({});
+      setParticipants(memberIds);
+      setLineItems([newLineItem()]);
+      return;
+    }
+
+    setTitle(expense.title);
+    setAmount(String(expense.amount));
+    setNotes(expense.notes ?? "");
+    // Stored as UTC midnight of the chosen day.
+    setIncurredAt(expense.incurredAt.slice(0, 10));
+    setCategoryId(expense.categoryId ?? NO_CATEGORY);
+    setSplitType(expense.splitType);
+    setMultiPayer(expense.paidBy.length > 1);
+    setSinglePayer(expense.paidBy[0]?.userId ?? members[0]?.userId._id ?? "");
+    setPayerMap(
+      Object.fromEntries(expense.paidBy.map((payer) => [payer.userId, String(payer.amount)])),
+    );
+    setSplitMap(
+      Object.fromEntries(
+        expense.splits.map((split) => [
+          split.userId,
+          String(
+            expense.splitType === "percentage"
+              ? (split.percentage ?? "")
+              : (split.amount ?? split.shareAmount),
+          ),
+        ]),
+      ),
+    );
+    setParticipants(
+      expense.splitType === "equal"
+        ? expense.splits.map((split) => split.userId).filter((id) => memberIds.includes(id))
+        : memberIds,
+    );
+    setLineItems(
+      expense.lineItems.length
+        ? expense.lineItems.map((item) =>
+            newLineItem({
+              label: item.label,
+              amount: String(item.amount),
+              sharedBy: item.sharedBy.filter((id) => memberIds.includes(id)),
+              proportional: Boolean(item.proportional),
+            }),
+          )
+        : [newLineItem()],
+    );
+  }, [open, members, expense]);
+
+  // Group expenses use the shared expense categories, so each member's share
+  // can count against their own budget for it.
+  React.useEffect(() => {
+    if (!open) return;
+    let active = true;
+
+    fetch("/api/private/categories")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { categories?: Category[] } | null) => {
+        if (!active) return;
+        setCategories(
+          (body?.categories ?? []).filter((c) => c.isSystem && c.type === "expense"),
+        );
+      })
+      .catch(() => {
+        if (active) setCategories([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   // Only offer the scan button when an extractor is actually configured —
   // a button that always fails is worse than no button.
@@ -520,7 +636,17 @@ export function ExpenseDialog({
     let splits;
     let itemPayload;
 
-    if (splitType === "itemized") {
+    if (splitType === "equal") {
+      if (!participants.length) {
+        next.splits = "Tick at least one person to split between.";
+      }
+      // Naming everyone is the same as naming no one; send the list only
+      // when it is a subset, so a member who joins later isn't implied.
+      splits =
+        participants.length < members.length
+          ? participants.map((userId) => ({ userId }))
+          : undefined;
+    } else if (splitType === "itemized") {
       const filled = lineItems.filter(
         (item) => item.label.trim() && (Number(item.amount) || 0) > 0,
       );
@@ -541,7 +667,7 @@ export function ExpenseDialog({
         sharedBy: item.sharedBy,
         proportional: item.proportional,
       }));
-    } else if (splitType !== "equal") {
+    } else {
       const target = splitType === "custom" ? total : 100;
       if (Math.abs(splitAssigned - target) >= 0.01) {
         next.splits =
@@ -566,20 +692,26 @@ export function ExpenseDialog({
     if (Object.keys(next).length) return;
 
     setSaving(true);
-    const response = await fetch(`/api/private/groups/${groupId}/expenses`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title.trim(),
-        notes: notes.trim() || undefined,
-        amount: total,
-        splitType,
-        paidBy,
-        splits,
-        lineItems: itemPayload,
-        incurredAt: `${incurredAt}T00:00:00.000Z`,
-      }),
-    });
+    const response = await fetch(
+      expense
+        ? `/api/private/groups/${groupId}/expenses/${expense._id}`
+        : `/api/private/groups/${groupId}/expenses`,
+      {
+        method: expense ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          notes: notes.trim() || undefined,
+          amount: total,
+          splitType,
+          paidBy,
+          splits,
+          lineItems: itemPayload,
+          categoryId: categoryId === NO_CATEGORY ? null : categoryId,
+          incurredAt: `${incurredAt}T00:00:00.000Z`,
+        }),
+      },
+    );
     setSaving(false);
 
     if (!response.ok) {
@@ -589,20 +721,24 @@ export function ExpenseDialog({
       return;
     }
 
-    toast.success(`"${title.trim()}" added to the group`);
+    toast.success(
+      expense ? `"${title.trim()}" updated` : `"${title.trim()}" added to the group`,
+    );
     onOpenChange(false);
     onSaved();
   };
 
-  const perHead = members.length ? total / members.length : 0;
+  const perHead = participants.length ? total / participants.length : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add group expense</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit group expense" : "Add group expense"}</DialogTitle>
           <DialogDescription>
-            Log what was spent, who paid, and how it should be divided.
+            {isEdit
+              ? "Changes update everyone's balances straight away."
+              : "Log what was spent, who paid, and how it should be divided."}
           </DialogDescription>
         </DialogHeader>
 
@@ -638,6 +774,26 @@ export function ExpenseDialog({
                 />
               </Field>
             </div>
+
+            <Field
+              label="Category"
+              htmlFor="expense-category"
+              hint="Each person's share counts against their own budget for this category."
+            >
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger id="expense-category">
+                  <SelectValue placeholder="Uncategorised" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CATEGORY}>Uncategorised</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category._id} value={category._id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
             {/* ── Who paid ──────────────────────────────────────────── */}
             <fieldset className="rounded-3xl border-[1.5px] border-foreground/15 p-4">
@@ -735,11 +891,24 @@ export function ExpenseDialog({
               {/* Progressive disclosure — the per-member grid only appears
                   when the chosen method actually needs it. */}
               {splitType === "equal" ? (
-                <p className="mt-3 rounded-3xl bg-muted px-3 py-2 text-sm">
-                  {members.length
-                    ? `${formatCurrency(perHead)} each across ${members.length} member${members.length === 1 ? "" : "s"}.`
-                    : "No members to split between yet."}
-                </p>
+                <div className="mt-3 space-y-3">
+                  <MemberChips
+                    members={members}
+                    selected={participants}
+                    onToggle={(userId) =>
+                      setParticipants((current) =>
+                        current.includes(userId)
+                          ? current.filter((id) => id !== userId)
+                          : [...current, userId],
+                      )
+                    }
+                  />
+                  <p className="rounded-3xl bg-muted px-3 py-2 text-sm">
+                    {participants.length
+                      ? `${formatCurrency(perHead)} each across ${participants.length} ${participants.length === 1 ? "person" : "people"}.`
+                      : "Tick who shared this."}
+                  </p>
+                </div>
               ) : splitType === "itemized" ? (
                 <div className="mt-3 space-y-3">
                   {scanAvailable && (
@@ -835,7 +1004,7 @@ export function ExpenseDialog({
               Cancel
             </Button>
             <Button type="submit" loading={saving}>
-              Add expense
+              {isEdit ? "Save changes" : "Add expense"}
             </Button>
           </DialogFooter>
         </form>
