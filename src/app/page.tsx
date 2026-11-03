@@ -3,8 +3,8 @@ import {
   ArrowRight,
   ChartPie,
   Receipt,
-  Repeat,
   Scale,
+  Sparkles,
   Target,
   Users,
 } from "lucide-react";
@@ -23,27 +23,27 @@ const FEATURES = [
   {
     icon: Users,
     title: "Split with a group",
-    body: "Equal, exact-amount or percentage splits, with support for several people paying on the same bill.",
+    body: "Split equally among whoever was there, by exact amount, by percentage, or by item — with tax and tip following what each person ordered. Several people can pay one bill.",
   },
   {
     icon: Scale,
-    title: "Settle up cleanly",
-    body: "Fee-Nance works out the shortest set of payments that clears everyone's balance, then records them.",
+    title: "Settle up in a tap",
+    body: "Fee-Nance suggests the payments that clear everyone's balance, opens your UPI app with the amount filled in, and records it once you've paid.",
   },
   {
     icon: Target,
-    title: "Budgets that hold you honest",
-    body: "Set monthly, quarterly or yearly limits — per category or overall — and watch spend against them.",
-  },
-  {
-    icon: Repeat,
-    title: "Recurring entries",
-    body: "Rent, salary, subscriptions: define them once and generate each period's entry on demand.",
+    title: "One budget, group bills included",
+    body: "Your share of a group dinner counts against your Food budget. Limits are monthly, quarterly or yearly, with a pace check against the calendar.",
   },
   {
     icon: ChartPie,
-    title: "Analytics worth reading",
-    body: "Category breakdowns, month-on-month trends and savings trajectory, all from your own data.",
+    title: "Plan, not just record",
+    body: "Goals, a 90-day cash-flow forecast, unusual-spend and duplicate-charge alerts, and an old-versus-new tax regime comparison for FY 2026-27.",
+  },
+  {
+    icon: Sparkles,
+    title: "Ask your own numbers",
+    body: "A copilot that reads your ledger, answers in plain language, and drafts entries for you to confirm. Import a bank CSV when you'd rather not type.",
   },
 ];
 
@@ -186,7 +186,7 @@ export default function Home() {
       <footer className="border-t-[1.5px] border-border">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>Fee-Nance — personal and group expense tracking.</p>
-          <p>Built as a DBMS mini-project.</p>
+          <p>A student project, built in the open.</p>
         </div>
       </footer>
     </main>
