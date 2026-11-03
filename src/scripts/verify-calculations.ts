@@ -27,9 +27,21 @@ import {
   parseStatementDate,
 } from "../lib/csv-import";
 import { upiPayLink, isValidUpiId } from "../lib/upi";
+import {
+  classify,
+  describe,
+  interpret,
+  makeRepeatable,
+  overlayTransactions,
+  runSync,
+  type OverlayTransaction,
+  type QueueItem,
+} from "../lib/offline/rules";
 import { budgetPace } from "../lib/budget-pace";
 
 let failures = 0;
+/** Checks that need to await; the summary waits for them. */
+const asyncChecks: Array<Promise<void>> = [];
 
 function check(name: string, condition: boolean, detail = "") {
   if (condition) {
@@ -543,10 +555,169 @@ console.log("\nBudget pacing");
   );
 }
 
-console.log(
-  failures === 0
-    ? "\nAll calculation checks passed.\n"
-    : `\n${failures} FAILURE(S)\n`,
-);
+console.log("\nOffline queue rules");
+{
+  const T = "11111111-1111-4111-8111-111111111111";
+  const G = "22222222-2222-4222-8222-222222222222";
 
-process.exit(failures === 0 ? 0 : 1);
+  check("create transaction is queueable", classify("POST", "/api/private/transactions")?.op === "create");
+  check("edit and delete a transaction are queueable",
+    classify("PATCH", `/api/private/transactions/${T}`)?.targetId === T &&
+      classify("DELETE", `/api/private/transactions/${T}`)?.op === "delete");
+  check("add a group expense and record a settlement are queueable",
+    classify("POST", `/api/private/groups/${G}/expenses`)?.kind === "expense" &&
+      classify("POST", `/api/private/groups/${G}/settlements`)?.kind === "settlement");
+  check("leaving a group is not queueable", classify("DELETE", `/api/private/groups/${G}`) === null);
+  check("editing a group expense is not queueable", classify("PATCH", `/api/private/groups/${G}/expenses/${T}`) === null);
+  check("budgets, goals and profile are not queueable",
+    classify("POST", "/api/private/budgets") === null && classify("POST", "/api/private/goals") === null &&
+      classify("PATCH", "/api/private/me") === null);
+  check("recurring generation and import are not queueable",
+    classify("POST", "/api/private/transactions/recurring/run") === null &&
+      classify("POST", "/api/private/transactions/import") === null);
+  check("a malformed id is not queueable", classify("DELETE", "/api/private/transactions/nope") === null);
+
+  let n = 0;
+  const key = () => `k${(n += 1)}`;
+  const txn = makeRepeatable({ kind: "transaction", op: "create" }, '{"title":"Chai","amount":20}', {}, () => "22222222-2222-4222-8222-22222222222" + n++);
+  check("a new transaction gets the id it will keep", JSON.parse(txn.body!).id === txn.targetId && Boolean(txn.targetId));
+  const again = makeRepeatable({ kind: "transaction", op: "create" }, txn.body, {}, key);
+  check("a transaction that already has an id keeps it", again.targetId === txn.targetId);
+  const exp = makeRepeatable({ kind: "expense", op: "create" }, '{"title":"Dinner"}', {}, key);
+  check("an expense gets a client key", /^exp-/.test(JSON.parse(exp.body!).clientKey));
+  const set = makeRepeatable({ kind: "settlement", op: "create" }, '{"amount":5}', {}, key);
+  check("a settlement gets an idempotency header", /^set-/.test(set.headers["x-idempotency-key"]));
+  const kept = makeRepeatable({ kind: "settlement", op: "create" }, "{}", { "x-idempotency-key": "mine-12345" }, key);
+  check("an existing idempotency header is kept", kept.headers["x-idempotency-key"] === "mine-12345");
+
+  check("2xx is done", interpret({ kind: "expense", op: "create" }, 201) === "done");
+  check("a repeated transaction create (409) is done", interpret({ kind: "transaction", op: "create" }, 409) === "done");
+  check("a repeated delete (404) is done", interpret({ kind: "transaction", op: "delete" }, 404) === "done");
+  check("an edit of something that's gone (404) is a conflict", interpret({ kind: "transaction", op: "update" }, 404) === "conflict");
+  check("a rejected expense (422) is a conflict", interpret({ kind: "expense", op: "create" }, 422) === "conflict");
+  check("401 means sign in again", interpret({ kind: "expense", op: "create" }, 401) === "auth");
+  check("5xx and 429 are retried", interpret({ kind: "expense", op: "create" }, 503) === "retry" && interpret({ kind: "expense", op: "create" }, 429) === "retry");
+
+  check("describe: add a transaction", describe("transaction", "create", '{"title":"Chai","amount":20}') === 'Add "Chai" ₹20');
+  check("describe: group expense", describe("expense", "create", '{"title":"Dinner","amount":1200}') === 'Add group expense "Dinner" ₹1,200');
+}
+
+console.log("\nOffline sync run");
+{
+  const mk = (order: number, over: Partial<QueueItem>): QueueItem => ({
+    id: `i${order}`, userId: "u", order, createdAt: "2026-06-01T00:00:00Z", kind: "transaction", op: "create",
+    method: "POST", url: "/api/private/transactions", body: "{}", headers: {}, targetId: `t${order}`,
+    label: "x", status: "pending", attempts: 0, ...over,
+  });
+  const world = (initial: QueueItem[], respond: (item: QueueItem) => number | "offline") => {
+    const store = new Map(initial.map((i) => [i.id, i]));
+    const sent: string[] = [];
+    return {
+      store,
+      sent,
+      deps: {
+        load: async () => [...store.values()],
+        save: async (i: QueueItem) => void store.set(i.id, i),
+        remove: async (id: string) => void store.delete(id),
+        send: async (i: QueueItem) => {
+          sent.push(i.id);
+          const r = respond(i);
+          if (r === "offline") throw new TypeError("network");
+          return { status: r };
+        },
+      },
+    };
+  };
+
+  // Nothing queued: no requests at all.
+  asyncChecks.push((async () => {
+    const empty = world([], () => 200);
+    const r0 = await runSync(empty.deps);
+    check("an empty queue makes no requests", empty.sent.length === 0 && r0.synced === 0);
+
+    const happy = world([mk(2, {}), mk(1, {}), mk(3, {})], () => 201);
+    const r1 = await runSync(happy.deps);
+    check("replays in order and empties the queue", happy.sent.join() === "i1,i2,i3" && happy.store.size === 0 && r1.synced === 3);
+
+    const flaky = world([mk(1, {}), mk(2, {}), mk(3, {})], (i) => (i.id === "i2" ? "offline" : 201));
+    const r2 = await runSync(flaky.deps);
+    check("stops when the connection drops and keeps the rest",
+      r2.offline && r2.synced === 1 && flaky.store.size === 2 && flaky.sent.join() === "i1,i2" && flaky.store.get("i2")!.attempts === 0);
+    const r2b = await runSync({ ...flaky.deps, send: async (i) => { flaky.sent.push(i.id); return { status: 201 }; } });
+    check("the next run finishes the job", r2b.synced === 2 && flaky.store.size === 0);
+
+    const rejected = world([mk(1, {}), mk(2, {}), mk(3, {})], (i) => (i.id === "i2" ? 422 : 201));
+    const r3 = await runSync(rejected.deps);
+    check("a rejected change is marked failed and the rest still sync",
+      r3.synced === 2 && r3.failed === 1 && rejected.store.get("i2")!.status === "failed" && rejected.store.size === 1);
+    const r3b = await runSync(rejected.deps);
+    check("a failed change is not retried", r3b.synced === 0 && rejected.sent.filter((s) => s === "i2").length === 1);
+
+    const dep = world(
+      [mk(1, { targetId: "T" }), mk(2, { op: "update", method: "PATCH", targetId: "T", url: "/api/private/transactions/T" })],
+      (i) => (i.id === "i1" ? 422 : 200),
+    );
+    const r4 = await runSync(dep.deps);
+    check("an edit of a transaction that failed to create is failed without being sent",
+      r4.failed === 2 && dep.sent.join() === "i1" && dep.store.get("i2")!.status === "failed");
+
+    const lost = world([mk(1, {})], () => 409);
+    const r5 = await runSync(lost.deps);
+    check("a create the server already has (lost response) counts as synced", r5.synced === 1 && lost.store.size === 0);
+
+    const expired = world([mk(1, {}), mk(2, {})], () => 401);
+    const r6 = await runSync(expired.deps);
+    check("an expired session stops the run and keeps everything",
+      r6.authRequired && r6.synced === 0 && expired.store.size === 2 && expired.sent.length === 1);
+  })());
+}
+
+console.log("\nPending changes over a transaction list");
+{
+  const base = (id: string, date: string, amount = 100): OverlayTransaction => ({
+    _id: id, type: "expense", title: id, amount, transactionDate: date, currency: "INR",
+  });
+  const list = [base("a", "2026-06-10T00:00:00.000Z"), base("b", "2026-06-05T00:00:00.000Z")];
+  const item = (order: number, over: Partial<QueueItem>): QueueItem => ({
+    id: `q${order}`, userId: "u", order, createdAt: "", kind: "transaction", op: "create", method: "POST",
+    url: "", body: "{}", headers: {}, label: "", status: "pending", attempts: 0, ...over,
+  });
+
+  const added = overlayTransactions(list, [
+    item(1, { targetId: "n", body: '{"type":"expense","title":"Chai","amount":20,"transactionDate":"2026-06-12T00:00:00.000Z"}' }),
+  ]);
+  check("an offline entry appears, first, marked pending",
+    added.length === 3 && added[0]._id === "n" && added[0].pending === true && added[0].amount === 20);
+
+  const outside = overlayTransactions(list, [
+    item(1, { targetId: "n", body: '{"title":"Old","amount":5,"transactionDate":"2025-01-01T00:00:00.000Z"}' }),
+  ], { startDate: "2026-06-01T00:00:00.000Z", endDate: "2026-06-30T23:59:59.000Z" });
+  check("an entry outside the viewed range is left out", outside.length === 2);
+
+  const edited = overlayTransactions(list, [item(1, { op: "update", method: "PATCH", targetId: "a", body: '{"amount":250,"title":"Renamed"}' })]);
+  check("an offline edit changes the entry and marks it pending",
+    edited.find((t) => t._id === "a")!.amount === 250 && edited.find((t) => t._id === "a")!.title === "Renamed" && edited.find((t) => t._id === "a")!.pending === true);
+
+  const deleted = overlayTransactions(list, [item(1, { op: "delete", method: "DELETE", targetId: "b", body: null })]);
+  check("an offline delete hides the entry", deleted.length === 1 && deleted[0]._id === "a");
+
+  const chain = overlayTransactions(list, [
+    item(1, { targetId: "n", body: '{"title":"Chai","amount":20,"transactionDate":"2026-06-12T00:00:00.000Z"}' }),
+    item(2, { op: "update", method: "PATCH", targetId: "n", body: '{"amount":30}' }),
+    item(3, { op: "delete", method: "DELETE", targetId: "a", body: null }),
+  ]);
+  check("create, edit and delete apply in order", chain.length === 2 && chain[0].amount === 30);
+  check("failed items are not shown",
+    overlayTransactions(list, [item(1, { status: "failed", targetId: "n", body: '{"title":"x","amount":1}' })]).length === 2);
+  check("the input list is not mutated", list.length === 2 && list[0].pending === undefined);
+}
+
+
+Promise.all(asyncChecks).then(() => {
+  console.log(
+    failures === 0
+      ? "\nAll calculation checks passed.\n"
+      : `\n${failures} FAILURE(S)\n`,
+  );
+  process.exit(failures === 0 ? 0 : 1);
+});
