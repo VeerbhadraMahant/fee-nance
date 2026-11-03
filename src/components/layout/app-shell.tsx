@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Home, LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
+import { Compass, Download, Home, LogOut, MoreHorizontal, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
@@ -30,6 +30,7 @@ import { toast } from "@/components/ui/toaster";
 import { useCurrentUser } from "@/components/providers/current-user";
 import { OfflineStatus } from "@/components/offline/offline-status";
 import { OnboardingProvider, SampleDataBanner, useOnboarding } from "@/components/onboarding/onboarding";
+import { useInstallPrompt } from "@/lib/install-prompt";
 import { clearOfflineData, hasPendingChanges, startOffline } from "@/lib/offline/client";
 import {
   Sheet,
@@ -79,6 +80,7 @@ function AccountMenu({
   const user = useCurrentUser();
   const { confirm, confirmDialog } = useConfirm();
   const { startTour } = useOnboarding();
+  const { canInstall, install } = useInstallPrompt();
   const name = user?.name ?? "Your account";
   const email = user?.email ?? "";
 
@@ -149,6 +151,12 @@ function AccountMenu({
               Landing page
             </Link>
           </DropdownMenuItem>
+          {canInstall && (
+            <DropdownMenuItem onSelect={install}>
+              <Download />
+              Install app
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={startTour}>
             <Compass />
             Take the tour

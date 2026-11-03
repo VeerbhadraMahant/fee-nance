@@ -2,6 +2,13 @@
 
 Fee-Nance installs to a phone's home screen and keeps working with no connection. Pages you have opened open again, your last-seen data is shown, and the most common changes (logging a purchase, adding a group bill, recording a payment) are saved on the device and sent when the connection returns.
 
+## Installing it
+
+- **Laptop (Chrome or Edge):** open the site and click the install icon at the right of the address bar, or choose **Install app** in the account menu. It then opens in its own window and works offline. Needs the deployed site over HTTPS, or a local production build (`npm run build`, `npm start`) on `localhost`. The offline worker is deliberately off under `npm run dev`.
+- **Android (Chrome):** the same, from the menu or the install banner.
+- **iPhone and iPad (Safari):** Share, then Add to Home Screen. Safari has no install prompt.
+- **Firefox on desktop** cannot install web apps.
+
 ## What works with no connection
 
 | | Offline |
