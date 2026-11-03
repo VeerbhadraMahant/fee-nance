@@ -1,3 +1,5 @@
+> **Archived (MongoDB era, before October 2026).** This describes the design from when Fee-Nance ran on MongoDB. The runtime is now Supabase Postgres; the schema of record is `supabase/migrations/`, documented in [`docs/database.md`](../../database.md). Kept as DBMS coursework history.
+
 # SQL Scripts (Documentation-Only)
 
 These SQL files are for DBMS academic mapping only.
@@ -14,4 +16,4 @@ These SQL files are for DBMS academic mapping only.
 ## Notes
 - The scripts intentionally use standard SQL patterns for readability during viva.
 - They are not executed by this project.
-- MongoDB runtime equivalents are documented in `docs/dbms-query-mapping.md`.
+- MongoDB runtime equivalents are documented in `docs/dbms/dbms-query-mapping.md`.

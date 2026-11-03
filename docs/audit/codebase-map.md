@@ -1,3 +1,5 @@
+> **Historical snapshot (September 2026, MongoDB codebase).** Phase 0 audit findings from before the move to Supabase. Many file paths and defects listed here no longer exist. The current assessment is [`docs/assessment-2026-11.md`](../assessment-2026-11.md).
+
 # A1 — Codebase Map
 
 _Phase 0 audit. Read-only. No code changed._

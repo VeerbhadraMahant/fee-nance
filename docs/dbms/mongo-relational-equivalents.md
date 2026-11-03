@@ -1,3 +1,5 @@
+> **Archived (MongoDB era, before October 2026).** This describes the design from when Fee-Nance ran on MongoDB. The runtime is now Supabase Postgres; the schema of record is `supabase/migrations/`, documented in [`docs/database.md`](../database.md). Kept as DBMS coursework history.
+
 # Trigger / Procedure / Function / Cursor Equivalents
 
 This project uses MongoDB and backend TypeScript services instead of relational stored database objects.

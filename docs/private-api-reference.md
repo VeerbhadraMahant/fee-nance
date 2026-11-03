@@ -1,144 +1,149 @@
-# Private API Module Reference
+# Private API reference
 
-All routes under `/api/private/*` require an authenticated session.
+Every route under `/api/private/*` requires a signed-in Supabase session (the auth cookie set by `/auth/callback`). Each handler verifies the JWT itself, validates input with Zod and queries Postgres as the user, so row-level security limits every response to the caller's own data and the groups they belong to.
 
-## Authentication Namespace
+Dates are ISO 8601 strings. Amounts are rupees as JSON numbers with at most two decimals.
 
-- `POST /api/auth/register`
-  - Create email/password account.
-- `/api/auth/[...nextauth]`
-  - NextAuth handlers (credentials + optional Google OAuth).
+## Errors
 
-## Profile Module
+| Status | Meaning |
+|---|---|
+| `401` | No valid session |
+| `404` | Not found — also returned for a resource that exists but belongs to someone else, and for a malformed id |
+| `409` | Unique constraint conflict (for example a duplicate category name) |
+| `422` | Validation or business-rule failure; the body's `error` names the first problem |
+| `429` | Rate limited (copilot, upstream model) |
+| `501` | Feature not configured (receipt extraction) |
+| `502`, `503` | Upstream model unavailable, or Supabase not configured |
+| `500` | Unexpected error (logged) |
 
-- `GET /api/private/me`
-  - Fetch current user profile + preferences.
-- `PATCH /api/private/me`
-  - Update profile name/preferences.
+Error bodies are `{ "error": "message" }`.
 
-## Dashboard Module
+## Auth (outside `/api/private`)
 
-- `GET /api/private/dashboard/summary`
-  - Aggregated totals, category breakdown, monthly trend, group count.
-  - Query params: `startDate`, `endDate`.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/auth/callback` | Google OAuth return; exchanges the code for a session and redirects to `next` (same-origin only) |
+| POST | `/auth/signout` | Ends the session |
 
-## Insights Module
+## Profile
 
-- `GET /api/private/insights`
-  - Outlier expenses, duplicate charges, category drift and a 90-day cash-flow
-    projection, in one payload.
-  - Query params: `startDate`, `endDate` (these bound the diagnostics only —
-    the forecast always runs forward from today).
-  - Read-only. Nothing is written and no flag is stored; every detector
-    recomputes per request.
-  - Requires MongoDB 5.0+ (`$setWindowFields`). See `docs/insights-pipelines.md`.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/me` | Profile and preferences |
+| PATCH | `/api/private/me` | Body: `name?`, `preferences: { currency?: "INR", dashboardDefaultRange? }` |
 
-## Finance Module
+## Dashboard, analytics, reports
 
-- `GET /api/private/finance/aggregate`
-  - Returns categories, transactions, budgets in one payload.
-  - Query params: `startDate`, `endDate`.
+| Method | Path | Query | Purpose |
+|---|---|---|---|
+| GET | `/api/private/dashboard/summary` | `startDate`, `endDate` | Totals, category breakdown, monthly trend, recent activity |
+| GET | `/api/private/analytics/summary` | `startDate`, `endDate` | Sankey, trajectory, composition, quarterly and efficiency data |
+| GET | `/api/private/finance/aggregate` | `startDate`, `endDate` | Categories, transactions and budgets in one payload |
+| GET | `/api/private/insights` | `startDate`, `endDate` | Outliers, duplicates, drift (bounded by the range) and a 90-day forecast (always from today) |
+| GET | `/api/private/insights/recurring` | — | Repeating payees with no recurring rule, and overlapping subscriptions |
+| GET | `/api/private/health` | — | Financial health score and its five pillars |
+| GET | `/api/private/report` | `month` (`YYYY-MM`) | One-month statement |
+| GET | `/api/private/tax/profile` | — | Income and deductions inferred from the ledger, for the tax planner |
+| GET | `/api/private/diagnostics` | — | Checks group invariants across the caller's groups; read-only |
 
-### Transactions
+All of these except `finance/aggregate` and `diagnostics` are cached when Redis is configured.
 
-- `GET /api/private/transactions`
-  - List transactions with summary and optional pagination.
-  - Query params:
-    - `startDate`, `endDate`
-    - `type` (`income|expense`)
-    - `page`, `limit`
-    - `sortBy` (`transactionDate|amount|createdAt|title`)
-    - `sortOrder` (`asc|desc`)
-- `POST /api/private/transactions`
-  - Create transaction.
-- `PATCH /api/private/transactions/[transactionId]`
-  - Update transaction.
-- `DELETE /api/private/transactions/[transactionId]`
-  - Delete transaction.
-- `POST /api/private/transactions/recurring/run`
-  - Generate due recurring transaction instances.
+## Transactions
 
-### Categories
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/transactions` | List with totals. Query: `startDate`, `endDate`, `type`, `page`, `limit` (≤100), `sortBy` (`transactionDate`, `amount`, `createdAt`, `title`), `sortOrder` |
+| POST | `/api/private/transactions` | Body: `type`, `title`, `amount`, `transactionDate`, `notes?`, `categoryId?`, `recurring?: { enabled, frequency?, nextRunAt? }` |
+| PATCH | `/api/private/transactions/[transactionId]` | Partial update |
+| DELETE | `/api/private/transactions/[transactionId]` | Delete |
+| POST | `/api/private/transactions/recurring/run` | Materialise every due occurrence of the caller's recurring rules |
 
-- `GET /api/private/categories`
-  - List system + user categories.
-- `POST /api/private/categories`
-  - Create custom category.
-- `PATCH /api/private/categories/[categoryId]`
-  - Update custom category.
-- `DELETE /api/private/categories/[categoryId]`
-  - Delete custom category.
+Without `page` or `limit`, the list returns every matching row.
 
-### Budgets
+## Categories
 
-- `GET /api/private/budgets`
-  - List budgets.
-  - Query params: `startDate`, `endDate`.
-- `POST /api/private/budgets`
-  - Create budget.
-- `PATCH /api/private/budgets/[budgetId]`
-  - Update budget.
-- `DELETE /api/private/budgets/[budgetId]`
-  - Delete budget.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/categories` | System and own categories |
+| POST | `/api/private/categories` | Create: `name`, `type`, `icon?`, `color?` |
+| PATCH | `/api/private/categories/[categoryId]` | Update an own category |
+| DELETE | `/api/private/categories/[categoryId]` | Delete an own category; its transactions become uncategorised |
 
-## Group Module
+## Budgets
 
-### Groups and Membership
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/budgets` | Budgets with spend. Query: `startDate`, `endDate` |
+| POST | `/api/private/budgets` | Create: `name`, `amount`, `cycle`, `periodStart`, `periodEnd`, `categoryId?` |
+| PATCH | `/api/private/budgets/[budgetId]` | Update |
+| DELETE | `/api/private/budgets/[budgetId]` | Delete |
 
-- `GET /api/private/groups`
-  - List groups for current member with pagination/search support.
-  - Query params: `page`, `limit`, `sortBy`, `sortOrder`, `search`.
-- `POST /api/private/groups`
-  - Create group and owner membership.
-- `POST /api/private/groups/join`
-  - Join group using invite code.
-- `GET /api/private/groups/[groupId]`
-  - Get group details.
+## Goals
 
-### Group Expenses
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/goals` | Goals with projections against the average monthly surplus |
+| POST | `/api/private/goals` | Create |
+| PATCH | `/api/private/goals/[goalId]` | Update, including contributions |
+| DELETE | `/api/private/goals/[goalId]` | Delete |
 
-- `GET /api/private/groups/[groupId]/expenses`
-  - List group expenses (filter/sort/pagination).
-  - Query params: `startDate`, `endDate`, `createdBy`, `page`, `limit`, `sortBy`, `sortOrder`.
-- `POST /api/private/groups/[groupId]/expenses`
-  - Create shared group expense.
-  - Supports split types: `equal`, `custom`, `percentage`, `itemized`, and
-    multiple payers.
-  - `itemized` requires a `lineItems` array (`label`, `amount`, `sharedBy[]`,
-    optional `proportional` for tax/tip). It is rejected on any other split
-    type, and any other split type is rejected without it.
+## Groups
 
-### Receipt Extraction
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/groups` | Groups the caller belongs to. Query: `page`, `limit`, `sortBy` (`createdAt`, `name`), `sortOrder`, `search` |
+| POST | `/api/private/groups` | Create: `name`. The caller becomes owner |
+| POST | `/api/private/groups/join` | Join: `inviteCode` |
+| GET | `/api/private/groups/[groupId]` | Group with members |
+| DELETE | `/api/private/groups/[groupId]` | Owner: delete the group for everyone. Member: leave |
+| GET | `/api/private/groups/analytics` | Cross-group analytics |
+| GET | `/api/private/groups/[groupId]/analytics` | One group's analytics |
 
-- `GET /api/private/receipts/extract`
-  - Reports whether an OCR extractor is configured (`{ configured: boolean }`),
-    so the UI can hide the scan button when it would only fail.
-- `POST /api/private/receipts/extract`
-  - Body: `{ base64, mimeType }`, image capped near 5 MB.
-  - Returns a **draft** set of line items for the user to confirm. The image is
-    never persisted and this route never writes to the ledger.
-  - `501` when no extractor is configured — the intended state until a model is
-    plugged into `src/lib/receipt/registry.ts`.
+### Group expenses
 
-### Group Balances
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/groups/[groupId]/expenses` | Query: `startDate`, `endDate`, `createdBy`, `page`, `limit`, `sortBy` (`incurredAt`, `amount`, `createdAt`), `sortOrder` |
+| POST | `/api/private/groups/[groupId]/expenses` | Create (below) |
 
-- `GET /api/private/groups/[groupId]/balances`
-  - Compute per-member net + simplified pairwise settlement suggestions.
+Create body:
 
-### Group Settlements
+```json
+{
+  "title": "Dinner",
+  "amount": 1500,
+  "splitType": "equal | custom | percentage | itemized",
+  "paidBy": [{ "userId": "…", "amount": 1500 }],
+  "splits": [{ "userId": "…", "amount": 500 }],
+  "lineItems": [{ "label": "Pizza", "amount": 900, "sharedBy": ["…"], "proportional": false }],
+  "incurredAt": "2026-11-03T19:30:00.000Z",
+  "notes": "optional"
+}
+```
 
-- `GET /api/private/groups/[groupId]/settlements`
-  - List settlement history with filters/pagination.
-  - Query params: `startDate`, `endDate`, `fromUserId`, `toUserId`, `page`, `limit`, `sortBy`, `sortOrder`.
-- `POST /api/private/groups/[groupId]/settlements`
-  - Create manual settlement.
-  - Optional idempotency header: `x-idempotency-key` (or `idempotency-key`).
+- `splits` carries `amount` for custom splits and `percentage` for percentage splits; it is ignored for equal splits, which divide across every member.
+- `lineItems` is required for `itemized` and rejected otherwise. Lines with `proportional: true` (tax, tip, service charge) are spread by each member's subtotal on the priced lines.
+- Payer amounts and computed shares must each sum to `amount`, or the request is rejected with `422`.
 
-## Error Semantics
+### Balances and settlements
 
-Common status patterns:
-- `401` unauthorized (no active session)
-- `403` forbidden (not permitted for resource)
-- `404` not found
-- `422` validation/business-rule failure
-- `500` unexpected server error
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/groups/[groupId]/balances` | Net per member and suggested pairwise payments |
+| GET | `/api/private/groups/[groupId]/settlements` | Query: `startDate`, `endDate`, `fromUserId`, `toUserId`, `page`, `limit`, `sortBy` (`settledAt`, `amount`, `createdAt`), `sortOrder` |
+| POST | `/api/private/groups/[groupId]/settlements` | Body: `fromUserId`, `toUserId`, `amount`, `note?`, `settledAt?`. Optional header `x-idempotency-key` (8–128 chars): a repeat with the same key returns the original with `idempotent: true` |
+
+## Receipts
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/receipts/extract` | `{ configured: boolean }`, so the UI can hide the scan button |
+| POST | `/api/private/receipts/extract` | Body: `{ base64, mimeType }` (JPEG, PNG or WebP, about 5 MB). Returns draft line items; never stores the image or writes to the ledger. `501` when no extractor is configured |
+
+## Copilot
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/private/copilot` | `{ available: boolean }` — whether `GEMINI_API_KEY` is set |
+| POST | `/api/private/copilot` | Body: `{ messages: [{ role: "user" | "assistant", content }] }` (≤30 messages, last from the user). Returns `{ reply, steps }` |
