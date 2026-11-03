@@ -42,7 +42,7 @@
   --muted-foreground: #4a4846;
 
   /* ── Lines & focus ─────────────────────────────────────────────────────── */
-  --border: #070607;
+  --border: #d3d2ce; /* hairline: dividers, card and table edges */
   --input: #070607;
   --ring: #fc5000;
 
@@ -85,7 +85,7 @@
   --sidebar-primary-foreground: #070607;
   --sidebar-accent: #ececea;
   --sidebar-accent-foreground: #070607;
-  --sidebar-border: #070607;
+  --sidebar-border: #d3d2ce;
   --sidebar-ring: #fc5000;
 }
 

@@ -233,7 +233,7 @@ function Tour({ onClose }: { onClose: (outcome: "done" | "skipped") => void }) {
         aria-modal="true"
         aria-labelledby="tour-title"
         aria-describedby="tour-body"
-        className="absolute flex flex-col gap-3 rounded-3xl border-[1.5px] border-foreground bg-popover p-5 text-popover-foreground"
+        className="absolute flex flex-col gap-3 rounded-3xl border border-foreground bg-popover p-5 text-popover-foreground"
         style={cardStyle(spot, viewport.w, viewport.h)}
       >
         <div className="flex items-center justify-between gap-3">
@@ -450,7 +450,7 @@ export function SampleDataBanner() {
     <>
       <div
         role="status"
-        className="mb-6 flex flex-col gap-3 rounded-2xl border-[1.5px] border-foreground bg-card p-4 text-sm sm:flex-row sm:items-center sm:justify-between print:hidden"
+        className="mb-6 flex flex-col gap-3 rounded-2xl border border-foreground bg-card p-4 text-sm sm:flex-row sm:items-center sm:justify-between print:hidden"
       >
         <p className="flex items-start gap-2">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />

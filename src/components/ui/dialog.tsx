@@ -47,7 +47,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed z-50 flex flex-col gap-4 border-[1.5px] border-foreground bg-popover text-popover-foreground outline-none",
+          "fixed z-50 flex flex-col gap-4 border border-foreground bg-popover text-popover-foreground outline-none",
           // mobile: bottom sheet
           "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[2.5rem]",
           "data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4 data-[state=open]:fade-in-0",

@@ -168,7 +168,7 @@ function SearchButton() {
       type="button"
       data-tour="search"
       onClick={openCommandPalette}
-      className="flex h-10 w-full items-center gap-2.5 rounded-full border-[1.5px] border-sidebar-border px-4 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="flex h-10 w-full items-center gap-2.5 rounded-full border border-sidebar-border px-4 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Search className="size-4 shrink-0" aria-hidden="true" />
       <span className="flex-1 text-left">Search</span>
@@ -234,7 +234,7 @@ function DesktopSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r-[1.5px] border-sidebar-border bg-sidebar lg:flex print:hidden">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex print:hidden">
       <div className="flex h-16 items-center justify-between px-4">
         <Brand />
         <ThemeToggle />
@@ -255,7 +255,7 @@ function DesktopSidebar() {
         ))}
       </nav>
 
-      <div className="border-t-[1.5px] border-sidebar-border p-2">
+      <div className="border-t border-sidebar-border p-2">
         <AccountMenu />
       </div>
     </aside>
@@ -266,7 +266,7 @@ function DesktopSidebar() {
 
 function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b-[1.5px] border-border bg-background/90 pb-0 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden print:hidden">
+    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b border-border bg-background/90 pb-0 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden print:hidden">
       <Brand />
       <div className="flex items-center gap-1">
         <button
@@ -309,7 +309,7 @@ function MobileBottomNav() {
       <nav
         aria-label="Main"
         data-tour="nav"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-[1.5px] border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden print:hidden"
       >
         {tabs.map(({ href, label, shortLabel, icon: Icon }) => {
           const active = isActivePath(pathname, href);

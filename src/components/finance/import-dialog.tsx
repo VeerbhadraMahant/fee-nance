@@ -249,7 +249,7 @@ export function ImportDialog({
                       </>
                     )}
                   </p>
-                  <ul className="divide-y divide-border overflow-hidden rounded-3xl border-[1.5px] border-foreground/15 text-sm">
+                  <ul className="divide-y divide-border overflow-hidden rounded-3xl border border-foreground/15 text-sm">
                     {rows.slice(0, PREVIEW_ROWS).map((row, index) => (
                       <li key={row.line} className="flex items-center gap-3 px-4 py-2">
                         <span className="tabular w-24 shrink-0 text-xs text-muted-foreground">{row.date}</span>

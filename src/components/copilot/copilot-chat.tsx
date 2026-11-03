@@ -119,7 +119,7 @@ function DraftCard({ draft }: { draft: Draft }) {
   if (state === "discarded") return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-3xl border-[1.5px] border-foreground/20 p-3 text-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-foreground/20 p-3 text-sm">
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{draft.title}</p>
         <p className="text-xs text-muted-foreground">
@@ -278,7 +278,7 @@ export function CopilotChat() {
           placeholder="Ask about your spending, budgets, goals…"
           aria-label="Message the copilot"
           disabled={unavailable}
-          className="max-h-40 min-h-10 flex-1 resize-none rounded-3xl border-[1.5px] border-border bg-transparent px-4 py-2 text-sm outline-none focus-visible:border-foreground"
+          className="max-h-40 min-h-10 flex-1 resize-none rounded-3xl border border-border bg-transparent px-4 py-2 text-sm outline-none focus-visible:border-foreground"
         />
         {messages.length > 0 && (
           <Button type="button" variant="ghost" size="icon" aria-label="Start over" onClick={() => setMessages([])} disabled={pending}>

@@ -199,7 +199,7 @@ export function CommandPalette() {
           onKeyDown={onKeyDown}
           className={cn(
             "fixed left-1/2 top-[12vh] z-50 flex max-h-[min(32rem,76vh)] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden",
-            "rounded-3xl border-[1.5px] border-border bg-popover text-popover-foreground outline-none",
+            "rounded-3xl border border-border bg-popover text-popover-foreground outline-none",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           )}
         >
@@ -208,7 +208,7 @@ export function CommandPalette() {
             Search pages and actions. Use the arrow keys to move and Enter to choose.
           </DialogPrimitive.Description>
 
-          <div className="flex items-center gap-3 border-b-[1.5px] border-border px-5">
+          <div className="flex items-center gap-3 border-b border-border px-5">
             <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <input
               autoFocus

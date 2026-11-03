@@ -52,7 +52,7 @@ function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-3xl border-[1.5px] border-dashed border-border px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border px-6 py-10 text-center",
         className,
       )}
     >
@@ -93,7 +93,7 @@ function ErrorState({
     <div
       role="alert"
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-3xl border-[1.5px] border-destructive/40 bg-destructive-subtle px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-3xl border border-destructive/40 bg-destructive-subtle px-6 py-10 text-center",
         className,
       )}
     >

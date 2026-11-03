@@ -56,7 +56,7 @@ export function OfflineStatus() {
         aria-live="polite"
         className={cn(
           // Above the mobile bottom nav and the home indicator; bottom-right on desktop.
-          "fixed left-1/2 z-40 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border-[1.5px] px-4 text-sm font-medium shadow-sm outline-none",
+          "fixed left-1/2 z-40 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border px-4 text-sm font-medium shadow-sm outline-none",
           "bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 lg:left-auto lg:right-6 lg:translate-x-0",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring print:hidden",
           tone === "warning" && "border-warning bg-warning-subtle text-foreground",
@@ -95,7 +95,7 @@ export function OfflineStatus() {
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing is waiting. Everything is saved to your account.</p>
             ) : (
-              <ul className="divide-y divide-border overflow-hidden rounded-3xl border-[1.5px] border-foreground/15">
+              <ul className="divide-y divide-border overflow-hidden rounded-3xl border border-foreground/15">
                 {items.map((item) => (
                   <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
                     <div className="min-w-0 flex-1">

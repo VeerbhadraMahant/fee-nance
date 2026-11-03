@@ -185,7 +185,7 @@ function MemberChips({
             aria-pressed={active}
             onClick={() => onToggle(id)}
             className={cn(
-              "rounded-full border-[1.5px] px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
               active
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-foreground/20 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
@@ -222,7 +222,7 @@ function LineItemGrid({
       {items.map((item, index) => (
         <div
           key={item.key}
-          className="rounded-3xl border-[1.5px] border-foreground/15 p-4"
+          className="rounded-3xl border border-foreground/15 p-4"
         >
           <div className="flex items-start gap-2">
             <Input
@@ -278,7 +278,7 @@ function LineItemGrid({
                     })
                   }
                   className={cn(
-                    "rounded-full border-[1.5px] px-3 py-1 text-xs font-medium transition-colors",
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                     active
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-foreground/20 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
@@ -295,7 +295,7 @@ function LineItemGrid({
               type="checkbox"
               checked={item.proportional}
               onChange={(e) => onChange(item.key, { proportional: e.target.checked })}
-              className="size-3.5 rounded border-[1.5px] border-foreground/40 accent-primary"
+              className="size-3.5 rounded border border-foreground/40 accent-primary"
             />
             Tax or tip — spread across the priced items instead of split evenly
           </label>
@@ -796,7 +796,7 @@ export function ExpenseDialog({
             </Field>
 
             {/* ── Who paid ──────────────────────────────────────────── */}
-            <fieldset className="rounded-3xl border-[1.5px] border-foreground/15 p-4">
+            <fieldset className="rounded-3xl border border-foreground/15 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <legend className="text-sm font-medium">Who paid?</legend>
                 <Button
@@ -853,7 +853,7 @@ export function ExpenseDialog({
             </fieldset>
 
             {/* ── How to split ──────────────────────────────────────── */}
-            <fieldset className="rounded-3xl border-[1.5px] border-foreground/15 p-4">
+            <fieldset className="rounded-3xl border border-foreground/15 p-4">
               <legend className="text-sm font-medium">How should it split?</legend>
 
               <div

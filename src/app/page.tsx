@@ -51,7 +51,7 @@ export default function Home() {
   return (
     <main className="min-h-dvh">
       {/* ── Nav ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b-[1.5px] border-border bg-background/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             href="/"
@@ -79,7 +79,7 @@ export default function Home() {
       </header>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b-[1.5px] border-border">
+      <section className="relative overflow-hidden border-b border-border">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-80 [background:radial-gradient(60%_50%_at_50%_-10%,var(--accent),transparent_65%),radial-gradient(35%_35%_at_85%_10%,var(--primary),transparent_70%)]"
@@ -172,7 +172,7 @@ export default function Home() {
               size="lg"
               variant="secondary"
               asChild
-              className="mt-7 border-[1.5px] border-foreground"
+              className="mt-7 border border-foreground"
             >
               <Link href="/login">
                 Get started
@@ -184,7 +184,7 @@ export default function Home() {
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="border-t-[1.5px] border-border">
+      <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>Fee-Nance — personal and group expense tracking.</p>
           <p>A student project, built in the open.</p>

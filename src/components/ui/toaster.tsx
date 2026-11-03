@@ -21,7 +21,7 @@ function Toaster() {
       toastOptions={{
         classNames: {
           toast:
-            "group rounded-3xl border-[1.5px] border-foreground bg-popover text-popover-foreground",
+            "group rounded-3xl border border-foreground bg-popover text-popover-foreground",
           description: "text-muted-foreground",
           actionButton: "bg-primary text-primary-foreground rounded-full",
           cancelButton: "bg-muted text-muted-foreground rounded-full",
