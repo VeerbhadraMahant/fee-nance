@@ -15,8 +15,13 @@ function friendlyError(message: string) {
   if (/rate limit|too many/i.test(message)) return "Too many attempts. Wait a few minutes and try again.";
   if (/password/i.test(message) && /(short|least|weak|characters)/i.test(message)) return "Use a password of at least 8 characters.";
   if (/signups? (are )?(not allowed|disabled)/i.test(message)) return "New sign-ups are turned off for this project.";
+  if (/error sending (confirmation|magic link|recovery)? ?email|smtp/i.test(message)) return "We couldn't send the email. Supabase's built-in email service only sends a few a day. Try again later, or ask the project owner to turn off \"Confirm email\" or add an SMTP provider.";
+  if (/not authorized|not allowed to (send|use)/i.test(message)) return "This project's email service can only send to approved addresses. Ask the project owner to add your address or set up SMTP.";
+  if (/(email address|invalid).*(invalid|format)|unable to validate email/i.test(message)) return "That email address doesn't look valid. Check it for typos.";
+  if (/already (been )?registered|already exists/i.test(message)) return "An account with this email already exists. Sign in instead.";
   if (/provider is not enabled/i.test(message)) return "Email sign-in isn't enabled for this project yet. Turn on the Email provider in Supabase → Authentication → Sign In / Providers.";
-  return "Something went wrong. Please try again.";
+  // Never hide the reason: an opaque error is impossible to act on.
+  return `Couldn't continue: ${message}`;
 }
 
 /**
