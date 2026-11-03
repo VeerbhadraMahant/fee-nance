@@ -162,7 +162,18 @@ function AccountMenu({
 
 /* ── Search trigger ────────────────────────────────────────────────────── */
 
+/** "Ctrl K" on Windows and Linux, "⌘K" on a Mac. Server and first paint use Ctrl, so hydration never mismatches. */
+const noSubscribe = () => () => {};
+function useIsMac() {
+  return React.useSyncExternalStore(
+    noSubscribe,
+    () => /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent),
+    () => false,
+  );
+}
+
 function SearchButton() {
+  const isMac = useIsMac();
   return (
     <button
       type="button"
@@ -172,7 +183,9 @@ function SearchButton() {
     >
       <Search className="size-4 shrink-0" aria-hidden="true" />
       <span className="flex-1 text-left">Search</span>
-      <kbd className="rounded-md border border-border px-1.5 font-mono text-2xs">⌘K</kbd>
+      <kbd className="shrink-0 rounded-full border border-border px-2 py-0.5 font-sans text-2xs font-medium leading-none text-muted-foreground">
+        {isMac ? "⌘ K" : "Ctrl K"}
+      </kbd>
     </button>
   );
 }

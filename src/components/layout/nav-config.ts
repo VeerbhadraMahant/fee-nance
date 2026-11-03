@@ -82,7 +82,7 @@ export const PLAN_ITEMS: NavItem[] = [
   },
   {
     href: "/tax",
-    label: "Tax planner",
+    label: "Tax Planner",
     shortLabel: "Tax",
     icon: Landmark,
     description: "New vs old regime, with your deductions",
@@ -90,7 +90,7 @@ export const PLAN_ITEMS: NavItem[] = [
   },
   {
     href: "/report",
-    label: "Monthly report",
+    label: "Monthly Report",
     shortLabel: "Report",
     icon: FileText,
     description: "A printable statement for any month",
