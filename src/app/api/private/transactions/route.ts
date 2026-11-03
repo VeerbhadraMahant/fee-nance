@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/api-auth";
 import { invalidateUsers } from "@/lib/cache";
 import { resolveAccessibleCategoryId } from "@/lib/category-access";
 import { toTransaction, type TransactionRow } from "@/lib/data/mappers";
+import { firstRunAfter } from "@/lib/recurrence";
 import { handleRouteError, must, optionalParam, selectAll } from "@/lib/route";
 
 const transactionSchema = z.object({
@@ -77,7 +78,12 @@ export async function GET(request: Request) {
             count: result.count,
           }))
         : selectAll<TransactionRow>(build).then((rows) => ({ rows, count: rows.length })),
-      supabase.rpc("ledger_type_totals", { p_start: q.startDate ?? null, p_end: q.endDate ?? null }),
+      // Totals for this list only: the transactions in it, without group shares.
+      supabase.rpc("ledger_type_totals", {
+        p_start: q.startDate ?? null,
+        p_end: q.endDate ?? null,
+        p_include_group_shares: false,
+      }),
     ]);
     const rows = listResult.rows;
     const totals = (must(totalsResult) ?? []) as Array<{ type: string; total: number }>;
@@ -133,9 +139,14 @@ export async function POST(request: Request) {
           transaction_date: payload.transactionDate,
           recurring_enabled: recurringEnabled,
           recurring_frequency: payload.recurring?.frequency ?? null,
-          recurring_next_run_at: recurringEnabled
-            ? (payload.recurring?.nextRunAt ?? payload.transactionDate)
-            : null,
+          recurring_next_run_at:
+            recurringEnabled && payload.recurring?.frequency
+              ? firstRunAfter(
+                  new Date(payload.transactionDate),
+                  payload.recurring.frequency,
+                  payload.recurring.nextRunAt ? new Date(payload.recurring.nextRunAt) : undefined,
+                ).toISOString()
+              : null,
         })
         .select()
         .single(),

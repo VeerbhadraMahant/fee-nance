@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toaster";
 import { useCurrentUser } from "@/components/providers/current-user";
 import {
   Sheet,
@@ -351,9 +352,41 @@ function MobileBottomNav() {
   );
 }
 
+/* ── Recurring entries ─────────────────────────────────────────────────────
+   Generates whatever recurring entries have fallen due, once per browser
+   session. The runner is idempotent, so a second tab or a retry is harmless. */
+
+const RECURRING_RUN_KEY = "feenance:recurring-run";
+
+function useDueRecurringEntries() {
+  React.useEffect(() => {
+    try {
+      if (sessionStorage.getItem(RECURRING_RUN_KEY)) return;
+      sessionStorage.setItem(RECURRING_RUN_KEY, "1");
+    } catch {
+      // Storage unavailable: run anyway; it is safe to repeat.
+    }
+
+    void fetch("/api/private/transactions/recurring/run", { method: "POST" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { generatedCount?: number } | null) => {
+        const count = body?.generatedCount ?? 0;
+        if (!count) return;
+        toast.success(`Added ${count} recurring entr${count === 1 ? "y" : "ies"} that fell due`, {
+          action: { label: "Refresh", onClick: () => window.location.reload() },
+        });
+      })
+      .catch(() => {
+        // Background convenience only; the dashboard button still works.
+      });
+  }, []);
+}
+
 /* ── Shell ─────────────────────────────────────────────────────────────── */
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useDueRecurringEntries();
+
   return (
     <div className="min-h-dvh">
       <a

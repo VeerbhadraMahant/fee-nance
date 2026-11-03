@@ -29,6 +29,8 @@ export interface ForecastRule {
   amount: number;
   frequency: RecurringFrequency;
   nextRunAt: Date;
+  /** Day of month the rule was set up on, so month-end rules stay at month-end. */
+  anchorDay?: number;
 }
 
 export interface ForecastInput {
@@ -85,6 +87,8 @@ export function buildForecast({
       rule.nextRunAt,
       rule.frequency,
       horizonEnd,
+      undefined,
+      rule.anchorDay,
     );
 
     for (const occurrence of occurrences) {
