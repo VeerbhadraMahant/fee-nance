@@ -72,7 +72,35 @@ npm run seed:demo -- you@gmail.com --reset
 - [ ] Invalid payloads return `422` with a readable message
 - [ ] No secret appears in the browser bundle (search the built JS for `SERVICE_ROLE` and `GEMINI`)
 
-## 7. UI
+## 7. Offline and installed
+
+Do these on a phone with the app installed to the home screen (Add to Home Screen / Install), after signing in and opening each main page once while online.
+
+- [ ] The installed app opens full-screen, with the F icon, and the status bar and notch don't cover the header or the bottom nav
+- [ ] Long-press the icon: shortcuts for Add expense, Groups and Copilot appear and work
+- [ ] Switch to airplane mode and reopen the app: Dashboard, Transactions, Groups open with their last data
+- [ ] A page you never opened shows the "You're offline" page, not a browser error
+- [ ] Offline, add a transaction: it appears at the top of the list marked "Waiting to sync", totals include it, and the pill reads "Offline · 1 waiting to sync"
+- [ ] Offline, edit that entry and delete another: both show correctly
+- [ ] Offline, add a group expense and record a payment: the pill counts them; the sync panel lists them
+- [ ] Offline, try to leave a group or change a budget: it fails with a clear message and nothing is queued
+- [ ] Turn the connection back on: the pill shows "Syncing…", then everything is saved, the tags disappear and a "Synced N changes" message appears
+- [ ] Check the server (Supabase table editor): each change exists exactly once, even if you toggled airplane mode on and off during the sync
+- [ ] With nothing waiting, going online and offline makes no write requests (watch the network tab or the Supabase logs)
+- [ ] Make an offline change that will be rejected (add a group expense, then have someone else remove you from the group, or edit a deleted transaction): it shows "Couldn't save" with a reason, and Retry/Discard work
+- [ ] Offline with changes waiting, choose Sign out: it warns that changes will be lost
+- [ ] After signing out, airplane mode and reopening shows no previous account's pages or data
+- [ ] On iOS, close the installed app for a few days with changes waiting and no connection: note whether they survive (see the Safari limit in `offline.md`)
+
+## 8. Mobile layout
+
+- [ ] Every page at 360px wide: no horizontal scroll, nothing under the bottom nav
+- [ ] Tapping a text field does not zoom the page on iOS
+- [ ] Icon buttons (edit, delete, menus) are comfortable to hit with a thumb
+- [ ] Dialogs and the keyboard: the focused field stays visible and the Save button is reachable
+- [ ] Landscape on a notched phone: content isn't hidden behind the notch
+
+## 9. UI
 
 - [ ] Every page works at 360px width with no horizontal scroll
 - [ ] Light and dark themes are both readable, including selects and charts

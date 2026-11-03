@@ -59,6 +59,8 @@ flowchart LR
 | `src/lib/csv-import.ts` | Statement CSV parsing, column guessing, row normalisation (pure) |
 | `src/lib/upi.ts` | UPI deep links and UPI ID validation |
 | `src/lib/budget-pace.ts` | Spend against time elapsed in a budget's period |
+| `src/lib/offline/` | Offline mode: `rules.ts` (what may be queued, repeatability, sync loop, list overlay), `store.ts` (IndexedDB queue), `client.ts` (fetch interception, sync, state) |
+| `public/sw.js` | Service worker: saves the app, pages and last-seen data for offline use |
 | `src/lib/rate-limit.ts` | Per-user fixed-window limits for routes that call Gemini |
 | `src/lib/recurrence.ts` | Stepping recurring rules; shared by the runner and the forecast |
 | `src/lib/forecast.ts` | 90-day cash-flow projection |

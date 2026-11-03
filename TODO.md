@@ -26,7 +26,10 @@ Ordered by value. IDs in brackets refer to the backlog in [`fee-nance-updates.md
 
 - [x] **N15** CSV statement import with column mapping, preview and duplicate detection [F13]
 - [x] **N16** Copilot drafts entries from free text for the user to confirm [F14]; copilot reads group balances
-- [ ] **N17** Reminders by email or push. (The web manifest for installing the app is done; there is no offline mode)
+- [x] **N17a** Installable, works offline, queued changes sync when back online ([`docs/offline.md`](docs/offline.md)). Logic verified; needs a real-device pass
+- [x] **N17b** Mobile pass: safe areas, 16px fields, 44px tap targets
+- [ ] **N17c** Reminders by email or push (needs a provider key)
+- [ ] **N17d** Run `manual-qa-checklist.md` §7 on a real phone and fix what it finds
 - [ ] **N18** Money value object in integer paise everywhere [M1–M4]
 - [ ] **N19** Service layer and split strategy classes for the SEML coursework [R1–R4]
 - [ ] **N20** Vitest suite, including per-route authorization tests [T1–T5]

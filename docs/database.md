@@ -88,6 +88,7 @@ erDiagram
     numeric amount
     text split_type "equal | custom | percentage | itemized"
     uuid category_id FK "shared expense category"
+    text client_key "idempotency for offline replays"
     jsonb line_items "itemized provenance"
     timestamptz incurred_at
   }
@@ -170,7 +171,7 @@ Group writes are `SECURITY DEFINER` because they touch several tables atomically
 | `join_group(code)` | Joins by invite code; idempotent |
 | `leave_group(id)` | Leave, refused while the caller's net position is not zero. An owner hands the group to the longest-standing member; the last member out deletes it |
 | `delete_group(id)` | The owner deletes the group, and its history, for everyone |
-| `create_group_expense(...)` | Writes the expense, payers and splits in one transaction |
+| `create_group_expense(...)` | Writes the expense, payers and splits in one transaction. With `p_client_key`, a repeat by the same author in the same group returns the expense already written (unique index `(group_id, created_by, client_key)`), which is what makes an offline replay safe |
 | `update_group_expense(...)` | Replaces an expense's fields, payers and splits in one transaction. The person who added it, or the group owner |
 | `delete_group_expense(id)` | Deletes it. Same permission |
 | `check_group_expense_parts(...)` | Shared by create and update: members only, no one twice, payers and shares each equal the total exactly, category is a shared expense category |

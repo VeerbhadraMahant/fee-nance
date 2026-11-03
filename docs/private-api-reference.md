@@ -54,7 +54,7 @@ All of these except `finance/aggregate` and `diagnostics` are cached when Redis 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/private/transactions` | List with totals. Query: `startDate`, `endDate`, `type`, `page`, `limit` (≤100), `sortBy` (`transactionDate`, `amount`, `createdAt`, `title`), `sortOrder` |
-| POST | `/api/private/transactions` | Body: `type`, `title`, `amount`, `transactionDate`, `notes?`, `categoryId?`, `recurring?: { enabled, frequency?, nextRunAt? }` |
+| POST | `/api/private/transactions` | Body: `type`, `title`, `amount`, `transactionDate`, `notes?`, `categoryId?`, `recurring?: { enabled, frequency?, nextRunAt? }`, `id?` (a UUID chosen by the client; the app always sends one so a replayed offline write hits the primary key and returns `409`, which it reads as "already saved") |
 | PATCH | `/api/private/transactions/[transactionId]` | Partial update |
 | DELETE | `/api/private/transactions/[transactionId]` | Delete |
 | POST | `/api/private/transactions/recurring/run` | Materialise every due occurrence of the caller's recurring rules. Idempotent: each occurrence is unique per rule and date, so repeating or racing it is harmless |
@@ -121,6 +121,7 @@ Create body:
   "splits": [{ "userId": "…", "amount": 500 }],
   "lineItems": [{ "label": "Pizza", "amount": 900, "sharedBy": ["…"], "proportional": false }],
   "categoryId": "uuid of a shared expense category, or null",
+  "clientKey": "optional, 8-128 chars: a repeat with the same key returns the expense already written",
   "incurredAt": "2026-11-03T19:30:00.000Z",
   "notes": "optional"
 }

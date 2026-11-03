@@ -113,6 +113,13 @@ pipelines with the same windows and thresholds.
 ### Copilot
 - **Financial Health Copilot** (`/copilot`): ask questions about your own money in plain language. A Gemini model calls read-only tools — snapshot, category spend, monthly trend, transaction search, budgets, goals, recurring rules, unusual activity — through your own Supabase session, so row-level security scopes everything it sees. It cannot write. Needs `GEMINI_API_KEY`
 
+### Offline and mobile
+- Installable to the home screen, and opens with no connection on any page you have visited
+- Add, edit and delete transactions, add group expenses and record payments with no connection: they're kept on the device, shown as "Waiting to sync", and sent in order when you're back online. Nothing is sent if nothing changed
+- A change the server rejects on replay is kept, with the reason, for you to retry or discard
+- Safe-area padding, 16px fields and 44px tap targets for phones
+- Details and limits: [`docs/offline.md`](docs/offline.md)
+
 ### Group expenses
 - Create a group (you become owner) or join one with an 8-character invite code
 - Leave a group once your balance is settled; an owner who leaves hands the group on
@@ -186,6 +193,8 @@ npm run seed:demo -- you@gmail.com
 - `npm run dev` / `build` / `start` — Next.js
 - `npm run lint`, `npm run format` — ESLint (with `--fix`)
 - `npm run verify:calc` — the pure money modules: split allocation, recurrence, forecast, tax, health score, goals, recurring detection, statement-import parsing, UPI links, budget pacing, plus route error mapping. No database needed
+- `npm run verify:sw` — runs the service worker in a sandbox and checks every offline caching rule. No browser needed
+- `npm run verify:offline` — runs the offline client against a fake network and IndexedDB: queueing, replay, repeatability, rejected changes. No browser needed
 - `npm run verify:db` — applies the migrations to an embedded Postgres (PGlite) and checks row-level security, every SQL function, group invariants, group shares in the personal ledger, and expense and settlement permissions. No Supabase project needed
 
 ## Routes
@@ -232,7 +241,8 @@ DBMS coursework from the MongoDB period, including `sql-scripts/`, is archived i
 - **Settle-up suggestions are a greedy match**, at most one fewer payments than members with a balance, not guaranteed to be the smallest set (finding that is NP-hard).
 - **Statement import** reads CSV only (no PDF), up to 500 rows at a time, and imported rows are uncategorised.
 - **Receipt scanning, the copilot and UPI links are untested against the live services.** The code type-checks and the pure parts are covered by `verify:calc`; nobody has yet run them against Gemini or a UPI app.
-- **Installable, not offline.** The web manifest lets phones add the app to the home screen; there is no offline mode and no push or email reminders.
+- **Offline mode is untested in a real browser.** The queueing, replay and caching logic is covered by `verify:sw`, `verify:offline` and `verify:calc`, but service worker registration, the install prompt, IndexedDB persistence and iOS storage eviction have only been reasoned about. Run the "Offline and installed" checklist in `docs/manual-qa-checklist.md` on a phone.
+- **Offline has limits.** Only transactions, group expenses and settlements can be changed offline; a group expense made offline doesn't show in balances until it syncs; there is no background sync while the app is closed; no push or email reminders. See [`docs/offline.md`](docs/offline.md).
 - **No test runner.** `verify:calc` and `verify:db` are standing checks, not a Vitest suite, and nothing exercises the routes or the UI automatically.
 - **The rate limit is per instance without Redis.** With Upstash it is shared; without it each server keeps its own count and a cold start resets it.
 - **Invite codes use Postgres `random()`**, not a cryptographic source. They are 8 characters from a 32-letter alphabet and only grant membership of one group.

@@ -14,7 +14,9 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 | Profile created on first sign-in | Done | Database trigger copies name, email and avatar from Google. Verified |
 | Profile and preferences | Done | Name, default dashboard range, UPI ID, whether group shares count |
 | Protected pages and APIs | Done | `src/proxy.ts` gate, JWT check in every route, RLS in Postgres. Verified |
-| Installable web app | Partial | Web manifest and icon, so phones can add it to the home screen. Needs a connection; no offline mode, no push notifications |
+| Installable web app | Done | Manifest with PNG and maskable icons, iOS home-screen metadata, long-press shortcuts (Add expense, Groups, Copilot). Not tested on a real device |
+| Works offline | Partial | Pages you've opened, and your last-seen data, open with no connection. Logging, editing and deleting transactions, adding group expenses and recording payments are saved on the device and sync when you're back online, in order, and only when something is waiting. See [`offline.md`](offline.md) for exactly what does and doesn't work. Logic verified; not tested in a real browser |
+| Mobile layout | Partial | Safe-area padding for notches and the home indicator, 16px form fields (no iOS zoom on focus), 44px tap targets on touch screens, no tap delay, standalone-mode scrolling. Checked by reading the code, not on devices |
 
 ## Personal finance
 
@@ -85,7 +87,8 @@ Status key: **Done** works end to end · **Partial** works with the gaps listed 
 | Light and dark themes, responsive layout | Done | |
 | CI: lint, typecheck, calculation and database checks, build | Done | |
 | Unit test runner (Vitest) | Not started | `verify:calc` and `verify:db` are standing checks |
-| Reminders by email or push | Not started | |
+| Reminders by email or push | Not started | Needs a provider (Resend, or web-push keys) |
+| Background sync while the app is closed | Not started | Not supported on iOS; sync runs when the app is open |
 | Multiple currencies | Not started | INR only |
 
 ## Not planned
