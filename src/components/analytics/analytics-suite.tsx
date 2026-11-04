@@ -10,7 +10,6 @@ import {
   Cell,
   ComposedChart,
   Layer,
-  Line,
   Pie,
   PieChart,
   Rectangle,
@@ -170,14 +169,12 @@ function TrajectoryChart({ data }: { data: AnalyticsPayload["monthlyTrend"] }) {
             />
           )}
           {!hidden.has("savings") && (
-            <Line
-              type="monotone"
+            <Bar
               dataKey="savings"
               name="Net savings"
-              stroke="var(--chart-1)"
-              strokeWidth={2}
-              dot={{ r: 3, strokeWidth: 0, fill: "var(--chart-1)" }}
-              activeDot={{ r: 5 }}
+              fill="var(--chart-1)"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={22}
             />
           )}
         </ComposedChart>
@@ -537,7 +534,7 @@ function MoneyFlowChart({
 
   return (
     <ChartFrame
-      height={Math.max(320, flowData.nodes.length * 34)}
+      height={Math.max(340, flowData.nodes.length * 38)}
       summary="Sankey diagram tracing money from each income source, through total spending, to every expense category."
     >
       <Sankey
@@ -546,10 +543,12 @@ function MoneyFlowChart({
         link={{ stroke: "var(--border)", strokeOpacity: 0.5 }}
         nodePadding={24}
         nodeWidth={10}
-        margin={{ top: 8, right: 140, bottom: 8, left: 8 }}
+        margin={{ top: 8, right: 140, bottom: 32, left: 8 }}
       >
         <RechartsTooltip
           formatter={(value) => formatCurrency(Number(value))}
+          itemStyle={{ color: "var(--popover-foreground)" }}
+          labelStyle={{ color: "var(--popover-foreground)" }}
           contentStyle={{
             background: "var(--popover)",
             border: "1px solid var(--border)",
