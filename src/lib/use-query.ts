@@ -15,6 +15,13 @@ const cache = new Map<string, unknown>();
 /** Fired by lib/offline/client.ts when queued changes sync or the connection returns. */
 const SYNCED_EVENT = "feenance:synced";
 
+const REVALIDATE_EVENT = "feenance:revalidate";
+
+/** Refetches every mounted `useQuery` whose URL starts with `prefix`, keeping data on screen. */
+export function revalidate(prefix: string) {
+  window.dispatchEvent(new CustomEvent(REVALIDATE_EVENT, { detail: prefix }));
+}
+
 /* ── In-flight counter, for the global progress bar ────────────────────── */
 
 let inFlight = 0;
@@ -76,6 +83,14 @@ export function useQuery<T>(url: string) {
     window.addEventListener(SYNCED_EVENT, reload);
     return () => window.removeEventListener(SYNCED_EVENT, reload);
   }, [reload]);
+
+  useEffect(() => {
+    const onRevalidate = (event: Event) => {
+      if (url.startsWith((event as CustomEvent<string>).detail)) reload();
+    };
+    window.addEventListener(REVALIDATE_EVENT, onRevalidate);
+    return () => window.removeEventListener(REVALIDATE_EVENT, onRevalidate);
+  }, [reload, url]);
 
   useEffect(() => {
     const controller = new AbortController();

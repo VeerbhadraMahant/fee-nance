@@ -16,7 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { readApiError, useQuery } from "@/lib/use-query";
+import { readApiError, revalidate, useQuery } from "@/lib/use-query";
 import { downloadCsv } from "@/lib/csv";
 import { upiPayLink } from "@/lib/upi";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -494,11 +494,8 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   }, [expensesQuery.data, groupQuery.data]);
 
   const refreshAll = React.useCallback(() => {
-    groupQuery.reload();
-    expensesQuery.reload();
-    balancesQuery.reload();
-    settlementsQuery.reload();
-  }, [groupQuery, expensesQuery, balancesQuery, settlementsQuery]);
+    revalidate(`/api/private/groups/${groupId}`);
+  }, [groupId]);
 
   const openSettle = (next: SettlementPrefill | null) => {
     setPrefill(next);
